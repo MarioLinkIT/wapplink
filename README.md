@@ -1,4 +1,7 @@
-# Website Builder
+# WappLink
+
+Website Builder
+Create buttons, move them around, and save the layout.
 
 ## AI Setup
 
