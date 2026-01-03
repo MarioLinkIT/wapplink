@@ -1,0 +1,188 @@
+{
+  "pages": [
+    {
+      "id": "page_1767396308490_6358",
+      "name": "Welcome",
+      "bg": "#3e487a",
+      "glow": "#371f34",
+      "containers": [
+        {
+          "id": "container_1767409589896_9816",
+          "name": "Container 0",
+          "x": 0,
+          "y": 0,
+          "width": 1354,
+          "height": 730,
+          "bgColor": "#4e4edf",
+          "borderColor": "#88a09c",
+          "borderStyle": "dashed",
+          "borderWidth": 4,
+          "units": {
+            "x": "%",
+            "y": "%",
+            "width": "%",
+            "height": "%"
+          },
+          "buttons": [
+            {
+              "id": "btn_1767443326197_9865",
+              "label": "Button 2",
+              "x": 624,
+              "y": 328,
+              "width": 88,
+              "height": 36,
+              "bgColor": "",
+              "borderColor": "",
+              "borderStyle": "",
+              "borderWidth": null,
+              "units": {
+                "x": "%",
+                "y": "%",
+                "width": "%",
+                "height": "%"
+              },
+              "action": {
+                "type": "none"
+              }
+            }
+          ],
+          "containers": [
+            {
+              "id": "container_1767442007672_2603",
+              "name": "Container 1",
+              "x": 253,
+              "y": 21,
+              "width": 828,
+              "height": 461,
+              "bgColor": "",
+              "borderColor": "",
+              "borderStyle": "",
+              "borderWidth": null,
+              "units": {
+                "x": "%",
+                "y": "%",
+                "width": "%",
+                "height": "%"
+              },
+              "buttons": [
+                {
+                  "id": "btn_1767395532621_8799",
+                  "label": "Button 1",
+                  "x": 19,
+                  "y": 25.0164794921875,
+                  "width": 88,
+                  "height": 36,
+                  "bgColor": "",
+                  "borderColor": "",
+                  "borderStyle": "",
+                  "borderWidth": null,
+                  "units": {
+                    "x": "%",
+                    "y": "%",
+                    "width": "%",
+                    "height": "%"
+                  },
+                  "action": {
+                    "type": "page",
+                    "pageId": "page_1767396320045_5940"
+                  }
+                }
+              ],
+              "containers": []
+            },
+            {
+              "id": "container_1767445920573_106",
+              "name": "Container 2",
+              "x": 21,
+              "y": 21,
+              "width": 828,
+              "height": 461,
+              "bgColor": "",
+              "borderColor": "",
+              "borderStyle": "",
+              "borderWidth": null,
+              "units": {
+                "x": "%",
+                "y": "%",
+                "width": "%",
+                "height": "%"
+              },
+              "buttons": [],
+              "containers": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "page_1767396320045_5940",
+      "name": "Page 2",
+      "bg": "#171730",
+      "glow": "#27f7d7",
+      "containers": [
+        {
+          "id": "container_1767409589896_8953",
+          "name": "Container 1",
+          "x": 0,
+          "y": 0,
+          "width": 1354,
+          "height": 730,
+          "bgColor": "",
+          "borderColor": "",
+          "borderStyle": "",
+          "borderWidth": null,
+          "units": {
+            "x": "%",
+            "y": "%",
+            "width": "%",
+            "height": "%"
+          },
+          "buttons": [
+            {
+              "id": "btn_1767397311369_5865",
+              "label": "Button 2",
+              "x": 140,
+              "y": 104,
+              "width": 88,
+              "height": 36,
+              "bgColor": "",
+              "borderColor": "",
+              "borderStyle": "",
+              "borderWidth": null,
+              "units": {
+                "x": "%",
+                "y": "%",
+                "width": "%",
+                "height": "%"
+              },
+              "action": {
+                "type": "page",
+                "pageId": "page_1767396308490_6358"
+              }
+            }
+          ],
+          "containers": []
+        }
+      ]
+    }
+  ],
+  "currentPageId": "page_1767396308490_6358",
+  "startPageId": "page_1767396308490_6358",
+  "canvasMode": "fixed",
+  "expandedContainers": [
+    "container_1767409589896_9816",
+    "container_1767409589896_8953",
+    "container_1767445920573_106",
+    "container_1767442007672_2603"
+  ],
+  "expandedPages": [
+    "page_1767396308490_6358",
+    "page_1767396320045_5940"
+  ],
+  "selectedNode": {
+    "type": "container",
+    "pageId": "page_1767396308490_6358",
+    "containerId": "container_1767409589896_9816",
+    "buttonId": ""
+  }
+}

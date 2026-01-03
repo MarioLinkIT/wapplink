@@ -1,0 +1,11 @@
+{
+  "name": "websitebuilder",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "start": "MODE=guest node server.js",
+    "dev": "node scripts/dev.js",
+    "log:update": "node scripts/update-work-log.js",
+    "log:watch": "node scripts/watch-work-log.js"
+  }
+}

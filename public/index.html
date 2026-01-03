@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simple Website Builder</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="builder">
+    <header class="topbar">
+      <div>
+        <h1>Website Builder</h1>
+        <p>Create buttons, move them around, and save the layout.</p>
+      </div>
+      <div class="actions">
+        <button id="toggleScale">Open Guest View</button>
+        <button id="testError" class="ghost-btn" type="button">Test Error</button>
+        <button id="saveState">Save</button>
+      </div>
+      <div class="notifications" id="notifications"></div>
+    </header>
+
+    <main class="layout">
+      <section class="canvas-panel">
+        <div id="canvas" class="canvas" aria-label="Page canvas"></div>
+      </section>
+      <aside class="sidebar wide">
+        <div class="section-title">
+          <h2>Hierarchy</h2>
+          <button id="addPage" class="icon-link" type="button" title="Add page" aria-label="Add page">+</button>
+        </div>
+        <ul id="treeList" class="tree"></ul>
+        <h2>Element</h2>
+        <div id="elementsEmpty" class="elements-empty">Select an element in the hierarchy.</div>
+        <ul id="elementsList" class="elements"></ul>
+        
+      </aside>
+    </main>
+
+    <script src="/shared.js"></script>
+    <script src="/helpers.js"></script>
+    <script src="/canvas.js"></script>
+    <script src="/tree.js"></script>
+    <script src="/element-panel.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
