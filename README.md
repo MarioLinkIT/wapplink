@@ -1,5 +1,11 @@
 # Website Builder
 
+## AI Setup
+
+- Agent: Codex CLI (GPT-5 based).
+- Scope: edits project files, runs local commands, and updates `WORK_LOG.json`.
+- Context: no persistence beyond this repo; relies on `WORK_LOG.json` for continuity.
+
 ## Workflow Optimization
 
 - Work in small, focused tasks; confirm each change before stacking more.
