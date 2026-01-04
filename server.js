@@ -86,6 +86,16 @@ const server = http.createServer(async (req, res) => {
         try {
           const parsed = JSON.parse(body || "{}");
           const pages = Array.isArray(parsed.pages) ? parsed.pages : [];
+          const sanitizeOrigin = (origin) => {
+            if (!origin || typeof origin !== "object") {
+              return { x: 0, y: 0 };
+            }
+            const ox = Number(origin.x);
+            const oy = Number(origin.y);
+            const clamp = (value) =>
+              Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+            return { x: clamp(ox), y: clamp(oy) };
+          };
           const sanitizeContainer = (container) => {
             const buttons = Array.isArray(container.buttons) ? container.buttons : [];
             const children = Array.isArray(container.containers) ? container.containers : [];
@@ -96,6 +106,7 @@ const server = http.createServer(async (req, res) => {
               y: Number(container.y || 0),
               width: Number(container.width || 0),
               height: Number(container.height || 0),
+              origin: sanitizeOrigin(container.origin),
               bgColor:
                 typeof container.bgColor === "string" ? String(container.bgColor) : "",
               borderColor:
@@ -128,6 +139,7 @@ const server = http.createServer(async (req, res) => {
                   y: Number(btn.y || 0),
                   width: Number(btn.width || 0),
                   height: Number(btn.height || 0),
+                  origin: sanitizeOrigin(btn.origin),
                   bgColor: typeof btn.bgColor === "string" ? String(btn.bgColor) : "",
                   borderColor:
                     typeof btn.borderColor === "string" ? String(btn.borderColor) : "",
@@ -182,6 +194,7 @@ const server = http.createServer(async (req, res) => {
                       y: Number(btn.y || 0),
                       width: Number(btn.width || 0),
                       height: Number(btn.height || 0),
+                      origin: sanitizeOrigin(btn.origin),
                       bgColor: typeof btn.bgColor === "string" ? String(btn.bgColor) : "",
                       borderColor:
                         typeof btn.borderColor === "string" ? String(btn.borderColor) : "",
@@ -251,6 +264,16 @@ const server = http.createServer(async (req, res) => {
                 ? parsed.startPageId
                 : (sanitizedPages[0] || fallbackPage).id,
             canvasMode: parsed.canvasMode === "full" ? "full" : "fixed",
+            pageSize:
+              parsed.pageSize &&
+              typeof parsed.pageSize === "object" &&
+              Number.isFinite(parsed.pageSize.width) &&
+              Number.isFinite(parsed.pageSize.height)
+                ? {
+                    width: Number(parsed.pageSize.width),
+                    height: Number(parsed.pageSize.height),
+                  }
+                : null,
             expandedContainers: Array.isArray(parsed.expandedContainers)
               ? parsed.expandedContainers
                   .map((id) => String(id || ""))

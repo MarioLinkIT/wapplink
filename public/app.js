@@ -27,6 +27,7 @@ const state = {
   selectedNode: { type: null, pageId: null, containerId: null, buttonId: null },
   isDirty: false,
   lastSaved: null,
+  pageSize: null,
   dragPayload: null,
   expandedContainers: [],
   expandedPages: [],
@@ -71,6 +72,7 @@ function snapshotState() {
       currentPageId: state.currentPageId,
       startPageId: state.startPageId,
       canvasMode: state.canvasMode,
+      pageSize: state.pageSize,
     })
   );
 }
@@ -258,6 +260,8 @@ function ensureCurrentPage() {
           y: 0,
           width: 0,
           height: 0,
+          origin: { x: 0.5, y: 0.5 },
+          borderWidth: 0,
           units: { x: "%", y: "%", width: "%", height: "%" },
           buttons: [],
           containers: [],
@@ -292,13 +296,16 @@ function renderPagesSelect() {
 }
 
 function createButtonForContainer(container) {
+  const centerX = Math.round((container.width || 0) / 2);
+  const centerY = Math.round((container.height || 0) / 2);
   const button = {
     id: makeId(),
     label: `Button ${container.buttons.length + 1}`,
-    x: Math.round(container.width / 2 - 40),
-    y: Math.round(container.height / 2 - 18),
+    x: centerX,
+    y: centerY,
     width: 0,
     height: 0,
+    origin: { x: 0.5, y: 0.5 },
     units: { x: "%", y: "%", width: "%", height: "%" },
     action: { type: "none" },
   };
@@ -312,13 +319,17 @@ function addNewButton() {
   if (!page) return;
   let container = getCurrentContainer();
   if (!container) {
+    const centerX = Math.round((rect.width || 0) / 2);
+    const centerY = Math.round((rect.height || 0) / 2);
     container = {
       id: makeContainerId(),
       name: "Container 1",
-      x: 40,
-      y: 40,
+      x: centerX,
+      y: centerY,
       width: Math.round(rect.width),
       height: Math.round(rect.height),
+      origin: { x: 0.5, y: 0.5 },
+      borderWidth: 0,
       units: { x: "%", y: "%", width: "%", height: "%" },
       buttons: [],
       containers: [],
@@ -344,13 +355,17 @@ function addChildContainer(parentContainer) {
   if (!parentContainer) return;
   const width = parentContainer.width ? Math.round(parentContainer.width * 0.6) : 240;
   const height = parentContainer.height ? Math.round(parentContainer.height * 0.6) : 160;
+  const centerX = Math.round((parentContainer.width || 0) / 2);
+  const centerY = Math.round((parentContainer.height || 0) / 2);
   const container = {
     id: makeContainerId(),
     name: `Container ${parentContainer.containers.length + 1}`,
-    x: 20,
-    y: 20,
+    x: centerX,
+    y: centerY,
     width,
     height,
+    origin: { x: 0.5, y: 0.5 },
+    borderWidth: 0,
     units: { x: "%", y: "%", width: "%", height: "%" },
     buttons: [],
     containers: [],
@@ -364,6 +379,9 @@ function addChildContainer(parentContainer) {
 }
 
 function addNewPage() {
+  const rect = canvasUI.getPageSurfaceRect();
+  const centerX = Math.round((rect.width || 0) / 2);
+  const centerY = Math.round((rect.height || 0) / 2);
   const page = {
     id: makePageId(),
     name: `Page ${state.pages.length + 1}`,
@@ -373,10 +391,12 @@ function addNewPage() {
       {
         id: makeContainerId(),
         name: "Container 1",
-        x: 40,
-        y: 40,
+        x: centerX,
+        y: centerY,
         width: 320,
         height: 200,
+        origin: { x: 0.5, y: 0.5 },
+        borderWidth: 0,
         units: { x: "%", y: "%", width: "%", height: "%" },
         buttons: [],
         containers: [],
@@ -400,13 +420,18 @@ function addNewPage() {
 function addNewContainer() {
   const page = getCurrentPage();
   if (!page) return;
+  const rect = canvasUI.getPageSurfaceRect();
+  const centerX = Math.round((rect.width || 0) / 2);
+  const centerY = Math.round((rect.height || 0) / 2);
   const container = {
     id: makeContainerId(),
     name: `Container ${page.containers.length + 1}`,
-    x: 40,
-    y: 40,
+    x: centerX,
+    y: centerY,
     width: 320,
     height: 200,
+    origin: { x: 0.5, y: 0.5 },
+    borderWidth: 0,
     units: { x: "%", y: "%", width: "%", height: "%" },
     buttons: [],
     containers: [],
@@ -539,6 +564,14 @@ async function loadState() {
   try {
     const res = await fetch("/state");
     const data = await res.json();
+    const normalizeOrigin = (origin) => {
+      if (!origin || typeof origin !== "object") return { x: 0.5, y: 0.5 };
+      const ox = Number(origin.x);
+      const oy = Number(origin.y);
+      const clamp = (value) =>
+        Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+      return { x: clamp(ox), y: clamp(oy) };
+    };
     const normalizeLoadedContainer = (container, index = 0) => {
       const normalized = {
         id: container.id || makeContainerId(),
@@ -547,6 +580,7 @@ async function loadState() {
         y: typeof container.y === "number" ? container.y : 0,
         width: typeof container.width === "number" ? container.width : 0,
         height: typeof container.height === "number" ? container.height : 0,
+        origin: normalizeOrigin(container.origin),
         units: container.units || { x: "%", y: "%", width: "%", height: "%" },
         buttons: Array.isArray(container.buttons)
           ? container.buttons.map((btn, btnIndex) => ({
@@ -556,6 +590,7 @@ async function loadState() {
               y: typeof btn.y === "number" ? btn.y : 40,
               width: typeof btn.width === "number" ? btn.width : 0,
               height: typeof btn.height === "number" ? btn.height : 0,
+              origin: normalizeOrigin(btn.origin),
               units: btn.units || { x: "%", y: "%", width: "%", height: "%" },
               bgColor: typeof btn.bgColor === "string" ? btn.bgColor : "",
               borderColor: typeof btn.borderColor === "string" ? btn.borderColor : "",
@@ -592,6 +627,19 @@ async function loadState() {
       typeof data.guestBg === "string" && data.guestBg.trim()
         ? data.guestBg
         : DEFAULT_PAGE_BG;
+    if (
+      data.pageSize &&
+      typeof data.pageSize === "object" &&
+      Number.isFinite(data.pageSize.width) &&
+      Number.isFinite(data.pageSize.height)
+    ) {
+      state.pageSize = {
+        width: Number(data.pageSize.width),
+        height: Number(data.pageSize.height),
+      };
+    } else {
+      state.pageSize = null;
+    }
     if (Array.isArray(data.pages) && data.pages.length) {
       state.pages = data.pages.map((page, pageIndex) => {
         const containers = Array.isArray(page.containers)
@@ -607,6 +655,8 @@ async function loadState() {
             y: 0,
             width: 0,
             height: 0,
+            origin: { x: 0.5, y: 0.5 },
+            borderWidth: 0,
             units: { x: "%", y: "%", width: "%", height: "%" },
             buttons: page.buttons.map((btn, index) => ({
               id: btn.id || makeId(),
@@ -615,6 +665,7 @@ async function loadState() {
               y: typeof btn.y === "number" ? btn.y : 40,
               width: typeof btn.width === "number" ? btn.width : 0,
               height: typeof btn.height === "number" ? btn.height : 0,
+              origin: normalizeOrigin(btn.origin),
               units: btn.units || { x: "%", y: "%", width: "%", height: "%" },
               bgColor: typeof btn.bgColor === "string" ? btn.bgColor : "",
               borderColor: typeof btn.borderColor === "string" ? btn.borderColor : "",
@@ -642,6 +693,8 @@ async function loadState() {
             y: 0,
             width: 0,
             height: 0,
+            origin: { x: 0.5, y: 0.5 },
+            borderWidth: 0,
             units: { x: "%", y: "%", width: "%", height: "%" },
             buttons: [],
             containers: [],
@@ -674,6 +727,8 @@ async function loadState() {
             y: 0,
             width: 0,
             height: 0,
+            origin: { x: 0.5, y: 0.5 },
+            borderWidth: 0,
             units: { x: "%", y: "%", width: "%", height: "%" },
             buttons: data.buttons.map((btn, index) => ({
               id: btn.id || makeId(),
@@ -682,6 +737,7 @@ async function loadState() {
               y: typeof btn.y === "number" ? btn.y : 40,
               width: typeof btn.width === "number" ? btn.width : 0,
               height: typeof btn.height === "number" ? btn.height : 0,
+              origin: normalizeOrigin(btn.origin),
               units: btn.units || { x: "%", y: "%", width: "%", height: "%" },
               bgColor: typeof btn.bgColor === "string" ? btn.bgColor : "",
               borderColor: typeof btn.borderColor === "string" ? btn.borderColor : "",
@@ -830,6 +886,11 @@ async function loadState() {
 
 async function saveCurrentState() {
   try {
+    const pageSurface = document.querySelector(".page-surface");
+    if (pageSurface) {
+      const rect = pageSurface.getBoundingClientRect();
+      state.pageSize = { width: Math.round(rect.width), height: Math.round(rect.height) };
+    }
     const res = await fetch("/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

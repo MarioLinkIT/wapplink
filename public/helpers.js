@@ -98,23 +98,32 @@
     onRenderCanvas,
     onRenderList,
     onDirty,
-    labelText = "pos & size",
+    labelText = "pos",
   }) {
     ensureElementUnits(target);
     const block = document.createElement("div");
     block.className = "position-field";
-    const grid = document.createElement("div");
-    grid.className = "pos-grid";
-    const handle = document.createElement("div");
-    handle.className = "pos-handle tl";
-    const handleBR = document.createElement("div");
-    handleBR.className = "pos-handle br";
-    const handleSize = document.createElement("div");
-    handleSize.className = "pos-handle size";
-    const label = document.createElement("span");
-    label.className = "grid-label";
-    label.textContent = labelText;
-    grid.append(handle, handleBR, handleSize, label);
+    const posGrid = document.createElement("div");
+    posGrid.className = "pos-grid";
+    const posHandle = document.createElement("div");
+    posHandle.className = "pos-handle tl";
+    const originHandle = document.createElement("div");
+    originHandle.className = "pos-handle origin";
+    const posLabel = document.createElement("span");
+    posLabel.className = "grid-label";
+    posLabel.textContent = labelText;
+    posGrid.append(posHandle, originHandle, posLabel);
+
+    const sizeGrid = document.createElement("div");
+    sizeGrid.className = "size-grid";
+    const sizeHandleTL = document.createElement("div");
+    sizeHandleTL.className = "pos-handle tl";
+    const sizeHandleBR = document.createElement("div");
+    sizeHandleBR.className = "pos-handle br";
+    const sizeLabel = document.createElement("span");
+    sizeLabel.className = "grid-label";
+    sizeLabel.textContent = "size";
+    sizeGrid.append(sizeHandleTL, sizeHandleBR, sizeLabel);
 
     const inputs = document.createElement("div");
     inputs.className = "pos-inputs";
@@ -169,11 +178,40 @@
     const renderList = onRenderList || (() => {});
     const markDirty = onDirty || (() => {});
     const resizeChildren = typeof onResizeChildren === "function" ? onResizeChildren : () => {};
-
+    const snapPoints = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 0.5, y: 0.5 },
+    ];
+    const snapToGrid = (px, py, gridRect, handleEl) => {
+      const dotRadius =
+        handleEl.offsetWidth && handleEl.offsetWidth > 0 ? handleEl.offsetWidth / 2 : 5;
+      const snapRadius =
+        dotRadius / Math.max(1, Math.min(gridRect.width, gridRect.height));
+      let nextX = px;
+      let nextY = py;
+      let bestDist = snapRadius;
+      snapPoints.forEach((point) => {
+        const dx = px - point.x;
+        const dy = py - point.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= bestDist) {
+          bestDist = dist;
+          nextX = point.x;
+          nextY = point.y;
+        }
+      });
+      return { x: nextX, y: nextY };
+    };
     const updateInputs = () => {
       const rect = getParentRect();
       const baseX = rect.width || 1;
       const baseY = rect.height || 1;
+      if (!target.origin) target.origin = { x: 0, y: 0 };
+      const originX = clamp(target.origin.x, 0, 1);
+      const originY = clamp(target.origin.y, 0, 1);
       const unitValue = target.units.x;
       const xDisplay = pxToUnit(target.x, unitValue, baseX);
       const yDisplay = pxToUnit(target.y, unitValue, baseY);
@@ -195,24 +233,20 @@
       sizeUnit.value = sizeUnitValue;
       const percentX = baseX ? clamp((target.x / baseX) * 100, 0, 100) : 0;
       const percentY = baseY ? clamp((target.y / baseY) * 100, 0, 100) : 0;
-      const percentBRX = baseX
-        ? clamp(((target.x + target.width) / baseX) * 100, 0, 100)
+      const percentWidth = baseX
+        ? clamp((target.width / baseX) * 100, 0, 100)
         : 0;
-      const percentBRY = baseY
-        ? clamp(((target.y + target.height) / baseY) * 100, 0, 100)
-        : 0;
-      const percentSizeX = baseX
-        ? clamp(100 - (target.width / baseX) * 100, 0, 100)
-        : 0;
-      const percentSizeY = baseY
+      const percentHeight = baseY
         ? clamp((target.height / baseY) * 100, 0, 100)
         : 0;
-      handle.style.left = `${percentX}%`;
-      handle.style.top = `${percentY}%`;
-      handleBR.style.left = `${percentBRX}%`;
-      handleBR.style.top = `${percentBRY}%`;
-      handleSize.style.left = `${percentSizeX}%`;
-      handleSize.style.top = `${percentSizeY}%`;
+      posHandle.style.left = `${percentX}%`;
+      posHandle.style.top = `${percentY}%`;
+      originHandle.style.left = `${originX * 100}%`;
+      originHandle.style.top = `${originY * 100}%`;
+      sizeHandleBR.style.left = `${percentWidth}%`;
+      sizeHandleBR.style.top = `${percentHeight}%`;
+      sizeHandleTL.style.left = `${100 - percentWidth}%`;
+      sizeHandleTL.style.top = `${100 - percentHeight}%`;
     };
 
     const applyAxisValue = (axis, value) => {
@@ -221,7 +255,9 @@
       const unit = target.units[axis];
       const clamped = Math.max(0, value);
       const nextPx = unitToPx(clamped, unit, base);
-      target[axis] = Math.max(0, Math.round(nextPx));
+      const limit = axis === "x" ? rect.width : rect.height;
+      const maxPos = Math.max(0, limit);
+      target[axis] = clamp(Math.round(nextPx), 0, maxPos);
     };
 
     const applySizeAxisValue = (axis, value) => {
@@ -245,22 +281,14 @@
 
     const applyGrid = (clientX, clientY) => {
       const rect = getParentRect();
-      const gridRect = grid.getBoundingClientRect();
+      const gridRect = posGrid.getBoundingClientRect();
       const px = clamp((clientX - gridRect.left) / gridRect.width, 0, 1);
       const py = clamp((clientY - gridRect.top) / gridRect.height, 0, 1);
-      const brX = target.x + target.width;
-      const brY = target.y + target.height;
-      const newX = Math.min(Math.round(rect.width * px), brX - 1);
-      const newY = Math.min(Math.round(rect.height * py), brY - 1);
-      const oldWidth = target.width || 1;
-      const oldHeight = target.height || 1;
-      const newWidth = Math.max(1, brX - newX);
-      const newHeight = Math.max(1, brY - newY);
-      resizeChildren(oldWidth, oldHeight, newWidth, newHeight);
-      target.x = newX;
-      target.y = newY;
-      target.width = newWidth;
-      target.height = newHeight;
+      const snapped = snapToGrid(px, py, gridRect, posHandle);
+      const maxX = Math.max(0, rect.width);
+      const maxY = Math.max(0, rect.height);
+      target.x = clamp(Math.round(rect.width * snapped.x), 0, maxX);
+      target.y = clamp(Math.round(rect.height * snapped.y), 0, maxY);
       updateInputs();
       renderCanvas();
       markDirty(true);
@@ -268,13 +296,14 @@
 
     const applyResize = (clientX, clientY) => {
       const rect = getParentRect();
-      const gridRect = grid.getBoundingClientRect();
+      const gridRect = sizeGrid.getBoundingClientRect();
       const px = clamp((clientX - gridRect.left) / gridRect.width, 0, 1);
       const py = clamp((clientY - gridRect.top) / gridRect.height, 0, 1);
+      const snapped = snapToGrid(px, py, gridRect, sizeHandleBR);
       const oldWidth = target.width || 1;
       const oldHeight = target.height || 1;
-      const newWidth = Math.max(1, Math.round(rect.width * px - target.x));
-      const newHeight = Math.max(1, Math.round(rect.height * py - target.y));
+      const newWidth = Math.max(1, Math.round(rect.width * snapped.x));
+      const newHeight = Math.max(1, Math.round(rect.height * snapped.y));
       resizeChildren(oldWidth, oldHeight, newWidth, newHeight);
       target.width = newWidth;
       target.height = newHeight;
@@ -285,83 +314,121 @@
 
     const applySizeGrid = (clientX, clientY) => {
       const rect = getParentRect();
-      const gridRect = grid.getBoundingClientRect();
+      const gridRect = sizeGrid.getBoundingClientRect();
       const px = clamp((clientX - gridRect.left) / gridRect.width, 0.01, 1);
       const py = clamp((clientY - gridRect.top) / gridRect.height, 0.01, 1);
       const oldWidth = target.width || 1;
       const oldHeight = target.height || 1;
-      const centerX = target.x + oldWidth / 2;
-      const centerY = target.y + oldHeight / 2;
       const newWidth = Math.max(1, Math.round(rect.width * (1 - px)));
-      const newHeight = Math.round(rect.height * py);
+      const newHeight = Math.max(1, Math.round(rect.height * py));
       resizeChildren(oldWidth, oldHeight, newWidth, newHeight);
       target.width = newWidth;
       target.height = newHeight;
-      target.x = Math.round(centerX - newWidth / 2);
-      target.y = Math.round(centerY - newHeight / 2);
       updateInputs();
       renderCanvas();
       markDirty(true);
     };
 
-    grid.addEventListener("pointerdown", (event) => {
+    const applySizeFromTL = (clientX, clientY) => {
+      const rect = getParentRect();
+      const gridRect = sizeGrid.getBoundingClientRect();
+      const px = clamp((clientX - gridRect.left) / gridRect.width, 0, 1);
+      const py = clamp((clientY - gridRect.top) / gridRect.height, 0, 1);
+      const snapped = snapToGrid(px, py, gridRect, sizeHandleTL);
+      const oldWidth = target.width || 1;
+      const oldHeight = target.height || 1;
+      const newWidth = Math.max(1, Math.round(rect.width * (1 - snapped.x)));
+      const newHeight = Math.max(1, Math.round(rect.height * (1 - snapped.y)));
+      resizeChildren(oldWidth, oldHeight, newWidth, newHeight);
+      target.width = newWidth;
+      target.height = newHeight;
+      updateInputs();
+      renderCanvas();
+      markDirty(true);
+    };
+
+    posGrid.addEventListener("pointerdown", (event) => {
       event.preventDefault();
-      grid.setPointerCapture(event.pointerId);
+      posGrid.setPointerCapture(event.pointerId);
       applyGrid(event.clientX, event.clientY);
       const onMove = (moveEvent) => {
         applyGrid(moveEvent.clientX, moveEvent.clientY);
       };
       const onUp = () => {
-        grid.removeEventListener("pointermove", onMove);
-        grid.removeEventListener("pointerup", onUp);
+        posGrid.removeEventListener("pointermove", onMove);
+        posGrid.removeEventListener("pointerup", onUp);
       };
-      grid.addEventListener("pointermove", onMove);
-      grid.addEventListener("pointerup", onUp, { once: true });
+      posGrid.addEventListener("pointermove", onMove);
+      posGrid.addEventListener("pointerup", onUp, { once: true });
     });
-    handle.addEventListener("pointerdown", (event) => {
+    posHandle.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      handle.setPointerCapture(event.pointerId);
+      posHandle.setPointerCapture(event.pointerId);
       applyGrid(event.clientX, event.clientY);
       const onMove = (moveEvent) => {
         applyGrid(moveEvent.clientX, moveEvent.clientY);
       };
       const onUp = () => {
-        handle.removeEventListener("pointermove", onMove);
-        handle.removeEventListener("pointerup", onUp);
+        posHandle.removeEventListener("pointermove", onMove);
+        posHandle.removeEventListener("pointerup", onUp);
       };
-      handle.addEventListener("pointermove", onMove);
-      handle.addEventListener("pointerup", onUp, { once: true });
+      posHandle.addEventListener("pointermove", onMove);
+      posHandle.addEventListener("pointerup", onUp, { once: true });
     });
-    handleBR.addEventListener("pointerdown", (event) => {
+    sizeHandleBR.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      handleBR.setPointerCapture(event.pointerId);
+      sizeHandleBR.setPointerCapture(event.pointerId);
       applyResize(event.clientX, event.clientY);
       const onMove = (moveEvent) => {
         applyResize(moveEvent.clientX, moveEvent.clientY);
       };
       const onUp = () => {
-        handleBR.removeEventListener("pointermove", onMove);
-        handleBR.removeEventListener("pointerup", onUp);
+        sizeHandleBR.removeEventListener("pointermove", onMove);
+        sizeHandleBR.removeEventListener("pointerup", onUp);
       };
-      handleBR.addEventListener("pointermove", onMove);
-      handleBR.addEventListener("pointerup", onUp, { once: true });
+      sizeHandleBR.addEventListener("pointermove", onMove);
+      sizeHandleBR.addEventListener("pointerup", onUp, { once: true });
     });
-    handleSize.addEventListener("pointerdown", (event) => {
+    sizeHandleTL.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      handleSize.setPointerCapture(event.pointerId);
-      applySizeGrid(event.clientX, event.clientY);
+      sizeHandleTL.setPointerCapture(event.pointerId);
+      applySizeFromTL(event.clientX, event.clientY);
       const onMove = (moveEvent) => {
-        applySizeGrid(moveEvent.clientX, moveEvent.clientY);
+        applySizeFromTL(moveEvent.clientX, moveEvent.clientY);
       };
       const onUp = () => {
-        handleSize.removeEventListener("pointermove", onMove);
-        handleSize.removeEventListener("pointerup", onUp);
+        sizeHandleTL.removeEventListener("pointermove", onMove);
+        sizeHandleTL.removeEventListener("pointerup", onUp);
       };
-      handleSize.addEventListener("pointermove", onMove);
-      handleSize.addEventListener("pointerup", onUp, { once: true });
+      sizeHandleTL.addEventListener("pointermove", onMove);
+      sizeHandleTL.addEventListener("pointerup", onUp, { once: true });
+    });
+    originHandle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!target.origin) target.origin = { x: 0, y: 0 };
+      const gridRect = posGrid.getBoundingClientRect();
+      const applyOrigin = (clientX, clientY) => {
+        const px = clamp((clientX - gridRect.left) / gridRect.width, 0, 1);
+        const py = clamp((clientY - gridRect.top) / gridRect.height, 0, 1);
+        const snapped = snapToGrid(px, py, gridRect, originHandle);
+        target.origin = { x: snapped.x, y: snapped.y };
+        updateInputs();
+        renderCanvas();
+        markDirty(true);
+      };
+      originHandle.setPointerCapture(event.pointerId);
+      applyOrigin(event.clientX, event.clientY);
+      const onMove = (moveEvent) => applyOrigin(moveEvent.clientX, moveEvent.clientY);
+      const onUp = () => {
+        originHandle.removeEventListener("pointermove", onMove);
+        originHandle.removeEventListener("pointerup", onUp);
+      };
+      originHandle.addEventListener("pointermove", onMove);
+      originHandle.addEventListener("pointerup", onUp, { once: true });
     });
 
     xInput.addEventListener("change", () => {
@@ -434,7 +501,7 @@
       hLabel,
       hInput
     );
-    block.append(grid, inputs);
+    block.append(posGrid, sizeGrid, inputs);
     updateInputs();
     return block;
   }
