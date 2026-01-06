@@ -1,0 +1,47 @@
+{
+  "rootType": "website",
+  "types": {
+    "website": {
+      "label": "Website",
+      "role": "root",
+      "children": [{ "type": "page", "collection": "pages" }],
+      "actions": { "add": ["page"] }
+    },
+    "page": {
+      "labelField": "name",
+      "idField": "id",
+      "role": "branch",
+      "children": [{ "type": "container", "collection": "containers" }],
+      "actions": { "add": ["container"], "remove": true, "star": true }
+    },
+    "container": {
+      "labelField": "name",
+      "idField": "id",
+      "role": "branch",
+      "draggable": true,
+      "children": [
+        { "type": "container", "collection": "containers" },
+        { "type": "button", "collection": "buttons" }
+      ],
+      "actions": { "add": ["button", "container"], "remove": true }
+    },
+    "button": {
+      "labelField": "label",
+      "idField": "id",
+      "role": "leaf",
+      "draggable": true,
+      "actions": { "remove": true }
+    }
+  },
+  "dragDrop": {
+    "button": {
+      "accept": ["container", "button"],
+      "reorderWithin": ["button"],
+      "moveInto": ["container"]
+    },
+    "container": {
+      "accept": ["container", "page"],
+      "moveInto": ["container", "page"]
+    }
+  }
+}

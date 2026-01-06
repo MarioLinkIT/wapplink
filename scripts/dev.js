@@ -1,4 +1,4 @@
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -7,6 +7,13 @@ const WATCH_TARGETS = [path.join(ROOT, "server.js"), path.join(ROOT, "public")];
 let child = null;
 let timer = null;
 let restarting = false;
+
+const validation = spawnSync(process.execPath, [path.join(__dirname, "validate-work-log.js")], {
+  stdio: "inherit",
+});
+if (validation.status && validation.status !== 0) {
+  process.exit(validation.status);
+}
 
 function startServer() {
   if (child) return;

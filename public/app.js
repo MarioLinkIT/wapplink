@@ -6,7 +6,6 @@ const renamePage = document.getElementById("renamePage");
 const startPageBtn = document.getElementById("startPageBtn");
 const removePage = document.getElementById("removePage");
 const pagesSelect = document.getElementById("pagesSelect");
-const addPageInTree = document.getElementById("addPage");
 const treeList = document.getElementById("treeList");
 const elementsEmpty = document.getElementById("elementsEmpty");
 const elementsList = document.getElementById("elementsList");
@@ -35,6 +34,7 @@ const state = {
 
 let renderTree = () => {};
 let renderList = () => {};
+let canvasUI = null;
 
 function addNotice(message, type = "info") {
   if (!notifications) return;
@@ -146,6 +146,14 @@ const {
 
 const renderTreeProxy = () => renderTree();
 const renderListProxy = () => renderList();
+const selection = Selection.createSelection({
+  state,
+  renderList: renderListProxy,
+  renderTree: renderTreeProxy,
+  renderPagesSelect: () => renderPagesSelect(),
+  applyCurrentPageBackground: () => applyCurrentPageBackground(),
+  getCanvasUI: () => canvasUI,
+});
 
 const canvasCtx = {
   state,
@@ -160,8 +168,9 @@ const canvasCtx = {
   renderList: renderListProxy,
   renderTree: renderTreeProxy,
   setDirty,
+  selectNode: (node) => selection.applySelection(node),
 };
-const canvasUI = CanvasUI(canvasCtx);
+canvasUI = CanvasUI(canvasCtx);
 
 function getCurrentPage() {
   return state.pages.find((page) => page.id === state.currentPageId) || state.pages[0];
@@ -528,6 +537,7 @@ const treeUI = TreeUI({
   addButtonToContainer,
   addChildContainer,
   addNewContainer,
+  addNewPage,
   removeCurrentContainer,
   removeCurrentPage,
   renderPagesSelect,
@@ -535,6 +545,7 @@ const treeUI = TreeUI({
   applyCurrentPageBackground,
   setDirty,
   canvasUI,
+  selectNode: (node) => selection.applySelection(node),
 });
 
 renderTree = treeUI.renderTree;
@@ -784,6 +795,13 @@ async function loadState() {
             buttonId: null,
           };
         }
+      } else if (selected.type === "website") {
+        state.selectedNode = {
+          type: "website",
+          pageId: null,
+          containerId: null,
+          buttonId: null,
+        };
       } else if (
         selected.type === "container" &&
         typeof selected.containerId === "string"
@@ -1001,9 +1019,6 @@ if (testError) {
     showError("Test error. Click to dismiss.");
   });
 }
-addPageInTree.addEventListener("click", () => {
-  addNewPage();
-});
 treeList.addEventListener("dblclick", (event) => {
   const node = event.target.closest(".tree-node-wrap");
   if (!node) return;

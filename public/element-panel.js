@@ -136,7 +136,10 @@
       if (!page) return;
       let container = null;
       let visibleButtons = [];
-      if (state.selectedNode.type === "page") {
+      if (state.selectedNode.type === "website") {
+        container = null;
+        visibleButtons = [];
+      } else if (state.selectedNode.type === "page") {
         container = null;
         visibleButtons = [];
       } else if (state.selectedNode.type === "container") {
@@ -151,11 +154,30 @@
       if (container) {
         normalizeContainer(container, getContainerParentRect(container.id, state.selectedNode.pageId));
       }
+      const hasWebsite = state.selectedNode.type === "website";
       const hasPage = state.selectedNode.type === "page" && Boolean(page);
       const hasContainer = Boolean(container);
-      const hasContent = hasPage || hasContainer || visibleButtons.length;
+      const hasContent = hasWebsite || hasPage || hasContainer || visibleButtons.length;
       elementsEmpty.style.display = hasContent ? "none" : "block";
       elementsList.style.display = hasContent ? "grid" : "none";
+      if (state.selectedNode.type === "website") {
+        const li = document.createElement("li");
+        li.classList.add("website-properties");
+        const header = document.createElement("div");
+        header.className = "meta-row";
+        const label = document.createElement("span");
+        label.textContent = "Website";
+        label.className = "editable-label";
+        const meta = document.createElement("span");
+        const pageCount = state.pages.length;
+        const current = state.pages.find((item) => item.id === state.currentPageId);
+        meta.textContent = `${pageCount} page${pageCount === 1 ? "" : "s"} · ${
+          current ? current.name : "No page"
+        }`;
+        header.append(label, meta);
+        li.appendChild(header);
+        elementsList.appendChild(li);
+      }
       if (state.selectedNode.type === "page" && page) {
         const li = document.createElement("li");
         li.classList.add("page-properties");

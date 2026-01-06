@@ -16,3 +16,5 @@ Create buttons, move them around, and save the layout.
 - Provide a short acceptance criteria line ("done when...") for UI changes.
 - Keep `WORK_LOG.json` updated after changes and include a short last-known state note when behavior is tricky.
 - Prefer incremental renders and avoid full tree re-renders when possible for UI performance.
+- Policy intents: keep lean principles, update logs with file changes, and preserve meaning when policies are shortened.
+- Policies live in `POLICIES.json`; copy it to new projects when you only need the rules.

@@ -1,9 +1,12 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const ROOT = path.join(__dirname, "..");
 const LOG_PATH = path.join(ROOT, "WORK_LOG.json");
+const VALIDATE_SCRIPT = path.join(__dirname, "validate-work-log.js");
 const SERVER_PATH = path.join(ROOT, "server.js");
+const POLICIES_PATH = path.join(ROOT, "POLICIES.json");
 const PUBLIC_DIR = path.join(ROOT, "public");
 
 function listPublicFiles() {
@@ -59,11 +62,31 @@ function buildLog() {
       w: "node scripts/watch-work-log.js",
       d: "node scripts/dev.js",
     },
-    pol: ["Whenever you change files, update the log", "Optimize log file for own efficiency"],
+    pol_ref: fs.existsSync(POLICIES_PATH) ? "POLICIES.json" : null,
+    pol_hash: null,
     ts: new Date().toISOString(),
   };
 
-  fs.writeFileSync(LOG_PATH, JSON.stringify(log));
+  if (fs.existsSync(POLICIES_PATH)) {
+    try {
+      const policiesDoc = JSON.parse(fs.readFileSync(POLICIES_PATH, "utf8"));
+      if (Array.isArray(policiesDoc.pol)) {
+        log.pol_hash = crypto
+          .createHash("sha256")
+          .update(JSON.stringify(policiesDoc.pol))
+          .digest("hex")
+          .slice(0, 12);
+      }
+    } catch (err) {
+      log.pol_hash = null;
+    }
+  }
+
+  fs.writeFileSync(LOG_PATH, JSON.stringify(log, null, 2));
+  if (fs.existsSync(VALIDATE_SCRIPT)) {
+    const { spawnSync } = require("child_process");
+    spawnSync("node", [VALIDATE_SCRIPT], { stdio: "inherit" });
+  }
 }
 
 buildLog();

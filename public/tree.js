@@ -5,27 +5,69 @@
       treeList,
       clamp,
       normalizeContainer,
-      getCurrentPage,
       getContainerById,
       getContainerParentRect,
-      getContainerParentId,
       getPageIdForContainer,
       createButtonForContainer,
       addButtonToContainer,
       addChildContainer,
+      addNewContainer,
+      addNewPage,
       removeCurrentContainer,
       removeCurrentPage,
       renderPagesSelect,
       renderList,
+      selectNode,
       applyCurrentPageBackground,
-      addNewContainer,
       setDirty,
       canvasUI,
     } = ctx;
 
+    const findPageById = (pageId) =>
+      state.pages.find((page) => page.id === pageId) || null;
+
+    const isNodeSelected = (node) => {
+      const selected = state.selectedNode || {};
+      if (node.type === "website") {
+        return selected.type === "website";
+      }
+      if (node.type === "page") {
+        return selected.type === "page" && selected.pageId === node.pageId;
+      }
+      if (node.type === "container") {
+        return selected.type === "container" && selected.containerId === node.containerId;
+      }
+      if (node.type === "button") {
+        return (
+          selected.type === "button" &&
+          selected.buttonId === node.buttonId &&
+          selected.containerId === node.containerId
+        );
+      }
+      return false;
+    };
+
     function renderTree() {
       treeList.innerHTML = "";
-      if (!state.pages.length) return;
+      if (!state.pages.length || !window.TreeModel) return;
+      TreeModel.ensureConfig(renderTree);
+      const getTypeActions = TreeModel.getActions;
+      const canDrag = TreeModel.canDrag;
+      const canDropOn = TreeModel.canDropOn;
+      const canReorderOn = TreeModel.canReorderOn;
+
+      const makeActionButton = (className, label, title, onClick) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = className;
+        button.textContent = label;
+        if (title) button.title = title;
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          onClick();
+        });
+        return button;
+      };
 
       const removeButtonFromContainer = (container, buttonId) => {
         const idx = container.buttons.findIndex((btn) => btn.id === buttonId);
@@ -81,21 +123,22 @@
         setDirty(true);
       };
 
-      const getButtonDragPayload = (event) => {
+      const getDragPayload = (event, prefix) => {
         if (!event.dataTransfer) return null;
         const payload = event.dataTransfer.getData("text/plain");
-        if (!payload || !payload.startsWith("button:")) return null;
+        if (!payload || !payload.startsWith(`${prefix}:`)) return null;
         const parts = payload.split(":");
         const fromPageId = parts.length > 3 ? parts[1] : null;
         const fromContainerId = parts.length > 3 ? parts[2] : parts[1];
-        const buttonId = parts.length > 3 ? parts[3] : parts[2];
-        if (!fromContainerId || !buttonId) return null;
-        return { fromPageId, fromContainerId, buttonId };
+        const nodeId = parts.length > 3 ? parts[3] : parts[2];
+        if (!fromContainerId || !nodeId) return null;
+        return { fromPageId, fromContainerId, nodeId, type: prefix };
       };
 
-      const makeButtonDropTarget = (element, handlers) => {
+      const makeDropTarget = (element, payloadType, handlers) => {
         element.addEventListener("dragover", (event) => {
-          const payload = getButtonDragPayload(event) || state.dragPayload;
+          const payload = getDragPayload(event, payloadType) || state.dragPayload;
+          if (payload && payload.type && payload.type !== payloadType) return;
           if (!payload) return;
           event.preventDefault();
           if (event.dataTransfer) {
@@ -107,356 +150,510 @@
           if (handlers.onDragLeave) handlers.onDragLeave();
         });
         element.addEventListener("drop", (event) => {
-          const payload = getButtonDragPayload(event) || state.dragPayload;
+          const payload = getDragPayload(event, payloadType) || state.dragPayload;
+          if (payload && payload.type && payload.type !== payloadType) return;
           if (!payload) return;
           event.preventDefault();
           if (handlers.onDrop) handlers.onDrop(payload);
         });
       };
 
-      const renderContainerNode = (container, parentUl, pageId) => {
+      const removeContainerFromParent = (containerId, pageId) => {
+        const page = findPageById(pageId);
+        if (!page) return null;
+        if (!Array.isArray(page.containers)) return null;
+        const removeFrom = (list) => {
+          const idx = list.findIndex((item) => item.id === containerId);
+          if (idx !== -1) {
+            const [removed] = list.splice(idx, 1);
+            return removed || null;
+          }
+          for (let i = 0; i < list.length; i += 1) {
+            const child = list[i];
+            if (!child || !Array.isArray(child.containers)) continue;
+            const removed = removeFrom(child.containers);
+            if (removed) return removed;
+          }
+          return null;
+        };
+        return removeFrom(page.containers);
+      };
+
+      const moveContainerToContainer = (containerId, fromPageId, toContainerId, toPageId) => {
+        if (containerId === toContainerId && fromPageId === toPageId) return;
+        const moved = removeContainerFromParent(containerId, fromPageId);
+        const toContainer = getContainerById(toContainerId, toPageId);
+        if (!moved || !toContainer) return;
+        toContainer.containers = Array.isArray(toContainer.containers)
+          ? toContainer.containers
+          : [];
+        toContainer.containers.push(moved);
+        if (!state.expandedContainers.includes(toContainerId)) {
+          state.expandedContainers = [...state.expandedContainers, toContainerId];
+        }
+        if (toPageId) {
+          state.currentPageId = toPageId;
+          if (!state.expandedPages.includes(toPageId)) {
+            state.expandedPages = [...state.expandedPages, toPageId];
+          }
+        }
+        state.selectedNode = {
+          type: "container",
+          pageId: toPageId || null,
+          containerId,
+          buttonId: null,
+        };
+        canvasUI.renderCanvas();
+        renderList();
+        renderTree();
+        setDirty(true);
+      };
+
+      const moveContainerToPage = (containerId, fromPageId, toPageId) => {
+        if (fromPageId === toPageId) return;
+        const moved = removeContainerFromParent(containerId, fromPageId);
+        const page = findPageById(toPageId);
+        if (!moved || !page) return;
+        page.containers = Array.isArray(page.containers) ? page.containers : [];
+        page.containers.push(moved);
+        state.currentPageId = toPageId;
+        if (!state.expandedPages.includes(toPageId)) {
+          state.expandedPages = [...state.expandedPages, toPageId];
+        }
+        state.selectedNode = {
+          type: "container",
+          pageId: toPageId,
+          containerId,
+          buttonId: null,
+        };
+        canvasUI.renderCanvas();
+        renderList();
+        renderTree();
+        setDirty(true);
+      };
+
+      const renderNode = (node, parentUl) => {
         const item = document.createElement("li");
         item.className = "tree-item";
         const row = document.createElement("div");
         row.className = "tree-row tree-node-wrap";
-        row.dataset.pageId = pageId || "";
-        const hasChildren = container.containers.length > 0 || container.buttons.length > 0;
-        row.classList.toggle("has-children", hasChildren);
-        row.classList.toggle("empty-children", !hasChildren);
-        const containerButton = document.createElement("button");
-        containerButton.type = "button";
-        containerButton.className = "tree-node-label";
-        containerButton.textContent = container.name;
-        row.dataset.containerId = container.id;
-        makeButtonDropTarget(row, {
-          onDragOver: () => row.classList.add("drag-target"),
-          onDragLeave: () => row.classList.remove("drag-target"),
-          onDrop: ({ fromPageId, fromContainerId, buttonId }) => {
-            row.classList.remove("drag-target");
-            if (fromContainerId === container.id && fromPageId === pageId) return;
-            moveButtonToContainer(buttonId, fromContainerId, container.id, fromPageId, pageId);
-          },
-        });
-        makeButtonDropTarget(containerButton, {
-          onDragOver: () => row.classList.add("drag-target"),
-          onDragLeave: () => row.classList.remove("drag-target"),
-          onDrop: ({ fromPageId, fromContainerId, buttonId }) => {
-            row.classList.remove("drag-target");
-            if (fromContainerId === container.id && fromPageId === pageId) return;
-            moveButtonToContainer(buttonId, fromContainerId, container.id, fromPageId, pageId);
-          },
-        });
-        if (
-          state.selectedNode.type === "container" &&
-          state.selectedNode.containerId === container.id
-        ) {
+        row.dataset.nodeType = node.type;
+        if (node.type === "button") {
+          row.classList.add("small");
+        }
+        if (isNodeSelected(node)) {
           row.classList.add("active");
         }
-        containerButton.addEventListener("click", () => {
-          if (pageId) {
-            state.currentPageId = pageId;
+        if (node.type === "page" && state.currentPageId === node.pageId) {
+          row.classList.add("active");
+        }
+        const labelButton = document.createElement("button");
+        labelButton.type = "button";
+        labelButton.className = "tree-node-label";
+        labelButton.textContent = node.label;
+        labelButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (typeof selectNode === "function") {
+            selectNode(node);
           }
-          state.selectedNode = {
-            type: "container",
-            pageId: pageId || null,
-            containerId: container.id,
-            buttonId: null,
-          };
-          canvasUI.renderCanvas();
-          renderList();
-          renderTree();
         });
+        row.appendChild(labelButton);
+
         const actions = document.createElement("span");
         actions.className = "tree-actions-inline";
-        if (hasChildren) {
-          const isExpanded = state.expandedContainers.includes(container.id);
-          const toggle = document.createElement("button");
-          toggle.type = "button";
-          toggle.className = "tree-toggle";
-          toggle.textContent = isExpanded ? "▾" : "▸";
-          toggle.title = isExpanded ? "Hide items" : "Show items";
-          toggle.addEventListener("click", (event) => {
-            event.stopPropagation();
-            if (state.expandedContainers.includes(container.id)) {
-              state.expandedContainers = state.expandedContainers.filter((id) => id !== container.id);
-            } else {
-              state.expandedContainers = [...state.expandedContainers, container.id];
-            }
-            renderTree();
-          });
-          actions.append(toggle);
-        }
-        const add = document.createElement("button");
-        add.type = "button";
-        add.className = "tree-add";
-        add.textContent = "+";
-        add.title = "Add inside container";
-        add.addEventListener("click", (event) => {
-          event.stopPropagation();
-          const choice = window.prompt('Add inside container: "b" for button, "c" for container');
-          if (!choice) return;
-          const normalized = choice.trim().toLowerCase();
-          if (normalized.startsWith("b")) {
-            const button = createButtonForContainer(container);
-            addButtonToContainer(container, button);
-            if (!state.expandedContainers.includes(container.id)) {
-              state.expandedContainers = [...state.expandedContainers, container.id];
-            }
-          } else if (normalized.startsWith("c")) {
-            addChildContainer(container);
-            if (!state.expandedContainers.includes(container.id)) {
-              state.expandedContainers = [...state.expandedContainers, container.id];
-            }
-          }
-        });
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "tree-remove";
-        remove.textContent = "−";
-        remove.title = "Remove container";
-        remove.addEventListener("click", (event) => {
-          event.stopPropagation();
-          const ok = window.confirm(`Delete container "${container.name}"?`);
-          if (!ok) return;
-          state.selectedNode = { type: "container", containerId: container.id, buttonId: null };
-          removeCurrentContainer();
-        });
-        actions.append(add, remove);
-        row.append(containerButton, actions);
-        item.appendChild(row);
+        const hasChildren = node.children && node.children.length > 0;
 
-        if (state.expandedContainers.includes(container.id)) {
-          const children = document.createElement("ul");
-          children.className = "tree-children";
-          makeButtonDropTarget(children, {
-            onDrop: ({ fromPageId, fromContainerId, buttonId }) => {
-              if (fromContainerId === container.id && fromPageId === pageId) return;
-              moveButtonToContainer(
-                buttonId,
-                fromContainerId,
-                container.id,
-                fromPageId,
-                pageId
-              );
-            },
-          });
-          container.containers.forEach((childContainer) => {
-            renderContainerNode(childContainer, children, pageId);
-          });
-          if (container.buttons.length) {
-            container.buttons.forEach((button) => {
-              const child = document.createElement("li");
-              const row = document.createElement("div");
-              row.className = "tree-row tree-node-wrap small";
-              makeButtonDropTarget(row, {
-                onDragOver: () => row.classList.add("drag-target"),
-                onDragLeave: () => row.classList.remove("drag-target"),
-                onDrop: ({ fromPageId, fromContainerId, buttonId }) => {
-                  row.classList.remove("drag-target");
-                  if (fromContainerId === container.id && fromPageId === pageId) {
-                    reorderButtonInContainer(container, buttonId, button.id);
-                    renderTree();
-                    setDirty(true);
-                    return;
-                  }
-                  moveButtonToContainer(buttonId, fromContainerId, container.id, fromPageId, pageId);
-                },
-              });
-              const btn = document.createElement("button");
-              btn.type = "button";
-              btn.className = "tree-node-label";
-              btn.textContent = button.label;
-              row.draggable = true;
-              const onDragStart = (event) => {
-                if (!event.dataTransfer) return;
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData(
-                  "text/plain",
-                  `button:${pageId || ""}:${container.id}:${button.id}`
+        if (node.type === "website") {
+          const actionsDef = getTypeActions("website");
+          if (typeof addNewPage === "function" && actionsDef.add && actionsDef.add.includes("page")) {
+            const addPageBtn = makeActionButton("tree-add", "+", "Add page", () => {
+              addNewPage();
+            });
+            actions.appendChild(addPageBtn);
+          }
+        }
+
+        if (node.type === "page") {
+          const actionsDef = getTypeActions("page");
+          const star = document.createElement("button");
+          star.type = "button";
+          star.className = "tree-star";
+          const isStart = state.startPageId === node.pageId;
+          star.textContent = isStart ? "★" : "☆";
+          star.title = isStart ? "Start page" : "Set start page";
+          star.classList.toggle("active", isStart);
+          if (actionsDef.star) {
+            star.addEventListener("click", (event) => {
+              event.stopPropagation();
+              state.startPageId = node.pageId;
+              renderPagesSelect();
+              renderTree();
+              setDirty(true);
+            });
+            actions.appendChild(star);
+          }
+
+          if (actionsDef.add && actionsDef.add.includes("container")) {
+            const add = makeActionButton("tree-add", "+", "Add container", () => {
+              state.currentPageId = node.pageId;
+              addNewContainer();
+            });
+            actions.appendChild(add);
+          }
+
+          if (actionsDef.remove) {
+            const remove = makeActionButton("tree-remove", "−", "Remove page", () => {
+              const page = findPageById(node.pageId);
+              const ok = window.confirm(`Delete page "${page ? page.name : "Page"}"?`);
+              if (!ok) return;
+              state.currentPageId = node.pageId;
+              removeCurrentPage();
+            });
+            actions.appendChild(remove);
+          }
+        }
+
+        if (node.type === "container") {
+          const actionsDef = getTypeActions("container");
+          row.dataset.pageId = node.pageId || "";
+          row.dataset.containerId = node.containerId;
+          if (hasChildren) {
+            row.classList.add("has-children");
+          } else {
+            row.classList.add("empty-children");
+          }
+          const isExpanded = state.expandedContainers.includes(node.containerId);
+          if (hasChildren) {
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "tree-toggle";
+            toggle.textContent = isExpanded ? "▾" : "▸";
+            toggle.title = isExpanded ? "Hide items" : "Show items";
+            toggle.addEventListener("click", (event) => {
+              event.stopPropagation();
+              if (state.expandedContainers.includes(node.containerId)) {
+                state.expandedContainers = state.expandedContainers.filter(
+                  (id) => id !== node.containerId
                 );
-                state.dragPayload = {
-                  fromPageId: pageId || null,
-                  fromContainerId: container.id,
-                  buttonId: button.id,
-                };
-              };
-              row.addEventListener("dragstart", onDragStart);
-              row.addEventListener("dragend", () => {
-                state.dragPayload = null;
-              });
-              btn.draggable = true;
-              btn.addEventListener("dragstart", onDragStart);
-              btn.addEventListener("dragend", () => {
-                state.dragPayload = null;
-              });
-              makeButtonDropTarget(btn, {
-                onDragOver: () => row.classList.add("drag-target"),
-                onDragLeave: () => row.classList.remove("drag-target"),
-                onDrop: ({ fromPageId, fromContainerId, buttonId }) => {
-                  row.classList.remove("drag-target");
-                  if (fromContainerId === container.id && fromPageId === pageId) {
-                    reorderButtonInContainer(container, buttonId, button.id);
-                    renderTree();
-                    setDirty(true);
-                    return;
-                  }
-                  moveButtonToContainer(buttonId, fromContainerId, container.id, fromPageId, pageId);
-                },
-              });
-              if (
-                state.selectedNode.type === "button" &&
-                state.selectedNode.buttonId === button.id &&
-                state.selectedNode.containerId === container.id
-              ) {
-                row.classList.add("active");
+              } else {
+                state.expandedContainers = [...state.expandedContainers, node.containerId];
               }
-              btn.addEventListener("click", (event) => {
-                event.stopPropagation();
-                if (pageId) {
-                  state.currentPageId = pageId;
+              renderTree();
+            });
+            actions.appendChild(toggle);
+          }
+
+          if (actionsDef.add && actionsDef.add.length) {
+            const add = makeActionButton("tree-add", "+", "Add inside container", () => {
+              const container = getContainerById(node.containerId, node.pageId);
+              if (!container) return;
+              const choice = window.prompt('Add inside container: "b" for button, "c" for container');
+              if (!choice) return;
+              const normalized = choice.trim().toLowerCase();
+              if (normalized.startsWith("b") && actionsDef.add.includes("button")) {
+                const button = createButtonForContainer(container);
+                addButtonToContainer(container, button);
+                if (!state.expandedContainers.includes(container.id)) {
+                  state.expandedContainers = [...state.expandedContainers, container.id];
                 }
-                state.selectedNode = {
-                  type: "button",
-                  pageId: pageId || null,
-                  containerId: container.id,
-                  buttonId: button.id,
-                };
-                canvasUI.renderCanvas();
-                renderList();
-                renderTree();
-              });
-              const remove = document.createElement("button");
-              remove.type = "button";
-              remove.className = "tree-remove";
-              remove.textContent = "−";
-              remove.title = "Remove button";
-              remove.addEventListener("click", (event) => {
-                event.stopPropagation();
-                const ok = window.confirm(`Delete button "${button.label}"?`);
-                if (!ok) return;
-                container.buttons = container.buttons.filter((item) => item.id !== button.id);
-                state.selectedNode = {
-                  type: "container",
-                  containerId: container.id,
-                  buttonId: null,
-                };
-                canvasUI.renderCanvas();
-                renderList();
-                renderTree();
-                setDirty(true);
-              });
-              row.append(btn, remove);
-              child.appendChild(row);
-              children.appendChild(child);
+              } else if (normalized.startsWith("c") && actionsDef.add.includes("container")) {
+                addChildContainer(container);
+                if (!state.expandedContainers.includes(container.id)) {
+                  state.expandedContainers = [...state.expandedContainers, container.id];
+                }
+              }
+            });
+            actions.appendChild(add);
+          }
+
+          if (actionsDef.remove) {
+            const remove = makeActionButton("tree-remove", "−", "Remove container", () => {
+              const container = getContainerById(node.containerId, node.pageId);
+              const ok = window.confirm(
+                `Delete container "${container ? container.name : "Container"}"?`
+              );
+              if (!ok) return;
+              state.selectedNode = {
+                type: "container",
+                containerId: node.containerId,
+                buttonId: null,
+              };
+              removeCurrentContainer();
+            });
+            actions.appendChild(remove);
+          }
+        }
+
+        if (node.type === "button") {
+          const actionsDef = getTypeActions("button");
+          row.draggable = canDrag("button");
+          labelButton.draggable = canDrag("button");
+          const onDragStart = (event) => {
+            if (!event.dataTransfer) return;
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData(
+              "text/plain",
+              `button:${node.pageId || ""}:${node.containerId}:${node.buttonId}`
+            );
+            state.dragPayload = {
+              fromPageId: node.pageId || null,
+              fromContainerId: node.containerId,
+              nodeId: node.buttonId,
+              type: "button",
+            };
+          };
+          const clearDrag = () => {
+            state.dragPayload = null;
+          };
+          row.addEventListener("dragstart", onDragStart);
+          row.addEventListener("dragend", clearDrag);
+          labelButton.addEventListener("dragstart", onDragStart);
+          labelButton.addEventListener("dragend", clearDrag);
+
+          if (actionsDef.remove) {
+            const remove = makeActionButton("tree-remove", "−", "Remove button", () => {
+              const container = getContainerById(node.containerId, node.pageId);
+              if (!container) return;
+              const button = container.buttons.find((item) => item.id === node.buttonId);
+              const ok = window.confirm(`Delete button "${button ? button.label : "Button"}"?`);
+              if (!ok) return;
+              container.buttons = container.buttons.filter((item) => item.id !== node.buttonId);
+              state.selectedNode = {
+                type: "container",
+                containerId: node.containerId,
+                buttonId: null,
+              };
+              canvasUI.renderCanvas();
+              renderList();
+              renderTree();
+              setDirty(true);
+            });
+            actions.appendChild(remove);
+          }
+        }
+
+        row.appendChild(actions);
+        item.appendChild(row);
+        parentUl.appendChild(item);
+
+        if (node.type === "container") {
+          if (canDrag("container")) {
+            row.draggable = true;
+            labelButton.draggable = true;
+            const onDragStart = (event) => {
+              if (!event.dataTransfer) return;
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData(
+                "text/plain",
+                `container:${node.pageId || ""}:${node.containerId}:${node.containerId}`
+              );
+              state.dragPayload = {
+                fromPageId: node.pageId || null,
+                fromContainerId: node.containerId,
+                nodeId: node.containerId,
+                type: "container",
+              };
+            };
+            const clearDrag = () => {
+              state.dragPayload = null;
+            };
+            row.addEventListener("dragstart", onDragStart);
+            row.addEventListener("dragend", clearDrag);
+            labelButton.addEventListener("dragstart", onDragStart);
+            labelButton.addEventListener("dragend", clearDrag);
+          }
+          if (canDropOn("button", "container")) {
+            makeDropTarget(row, "button", {
+              onDragOver: () => row.classList.add("drag-target"),
+              onDragLeave: () => row.classList.remove("drag-target"),
+              onDrop: ({ fromPageId, fromContainerId, nodeId }) => {
+                row.classList.remove("drag-target");
+                if (fromContainerId === node.containerId && fromPageId === node.pageId) return;
+                moveButtonToContainer(nodeId, fromContainerId, node.containerId, fromPageId, node.pageId);
+              },
+            });
+            makeDropTarget(labelButton, "button", {
+              onDragOver: () => row.classList.add("drag-target"),
+              onDragLeave: () => row.classList.remove("drag-target"),
+              onDrop: ({ fromPageId, fromContainerId, nodeId }) => {
+                row.classList.remove("drag-target");
+                if (fromContainerId === node.containerId && fromPageId === node.pageId) return;
+                moveButtonToContainer(nodeId, fromContainerId, node.containerId, fromPageId, node.pageId);
+              },
             });
           }
-          if (children.children.length) {
-            item.appendChild(children);
+          if (canDropOn("container", "container")) {
+            makeDropTarget(row, "container", {
+              onDragOver: () => row.classList.add("drag-target"),
+              onDragLeave: () => row.classList.remove("drag-target"),
+              onDrop: ({ fromPageId, nodeId }) => {
+                row.classList.remove("drag-target");
+                if (nodeId === node.containerId && fromPageId === node.pageId) return;
+                moveContainerToContainer(nodeId, fromPageId, node.containerId, node.pageId);
+              },
+            });
+            makeDropTarget(labelButton, "container", {
+              onDragOver: () => row.classList.add("drag-target"),
+              onDragLeave: () => row.classList.remove("drag-target"),
+              onDrop: ({ fromPageId, nodeId }) => {
+                row.classList.remove("drag-target");
+                if (nodeId === node.containerId && fromPageId === node.pageId) return;
+                moveContainerToContainer(nodeId, fromPageId, node.containerId, node.pageId);
+              },
+            });
           }
         }
-        parentUl.appendChild(item);
-      };
 
-      const renderPageNode = (page) => {
-        const item = document.createElement("li");
-        item.className = "tree-item";
-        const row = document.createElement("div");
-        row.className = "tree-row tree-node-wrap tree-page";
-        const pageButton = document.createElement("button");
-        pageButton.type = "button";
-        pageButton.className = "tree-node-label";
-        pageButton.textContent = page.name;
-        if (state.currentPageId === page.id) {
-          row.classList.add("active");
+        if (node.type === "button" && canDropOn("button", "button")) {
+          makeDropTarget(labelButton, "button", {
+            onDragOver: () => row.classList.add("drag-target"),
+            onDragLeave: () => row.classList.remove("drag-target"),
+            onDrop: ({ fromPageId, fromContainerId, nodeId }) => {
+              row.classList.remove("drag-target");
+              if (
+                fromContainerId === node.containerId &&
+                fromPageId === node.pageId &&
+                canReorderOn("button", "button")
+              ) {
+                const container = getContainerById(node.containerId, node.pageId);
+                if (!container) return;
+                reorderButtonInContainer(container, nodeId, node.buttonId);
+                renderTree();
+                setDirty(true);
+                return;
+              }
+              moveButtonToContainer(nodeId, fromContainerId, node.containerId, fromPageId, node.pageId);
+            },
+          });
+          makeDropTarget(row, "button", {
+            onDragOver: () => row.classList.add("drag-target"),
+            onDragLeave: () => row.classList.remove("drag-target"),
+            onDrop: ({ fromPageId, fromContainerId, nodeId }) => {
+              row.classList.remove("drag-target");
+              if (
+                fromContainerId === node.containerId &&
+                fromPageId === node.pageId &&
+                canReorderOn("button", "button")
+              ) {
+                const container = getContainerById(node.containerId, node.pageId);
+                if (!container) return;
+                reorderButtonInContainer(container, nodeId, node.buttonId);
+                renderTree();
+                setDirty(true);
+                return;
+              }
+              moveButtonToContainer(nodeId, fromContainerId, node.containerId, fromPageId, node.pageId);
+            },
+          });
         }
-        pageButton.addEventListener("click", () => {
-          state.currentPageId = page.id;
-          state.selectedNode = { type: "page", pageId: page.id, containerId: null, buttonId: null };
-          renderPagesSelect();
-          canvasUI.renderCanvas();
-          renderList();
-          renderTree();
-          applyCurrentPageBackground();
-        });
-        const actions = document.createElement("span");
-        actions.className = "tree-actions-inline";
-        const star = document.createElement("button");
-        star.type = "button";
-        star.className = "tree-star";
-        const isStart = state.startPageId === page.id;
-        star.textContent = isStart ? "★" : "☆";
-        star.title = isStart ? "Start page" : "Set start page";
-        star.classList.toggle("active", isStart);
-        star.addEventListener("click", (event) => {
-          event.stopPropagation();
-          state.startPageId = page.id;
-          renderPagesSelect();
-          renderTree();
-          setDirty(true);
-        });
-        actions.append(star);
-        const add = document.createElement("button");
-        add.type = "button";
-        add.className = "tree-add";
-        add.textContent = "+";
-        add.title = "Add container";
-        add.addEventListener("click", (event) => {
-          event.stopPropagation();
-          state.currentPageId = page.id;
-          addNewContainer();
-        });
-        actions.append(add);
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "tree-remove";
-        remove.textContent = "−";
-        remove.title = "Remove page";
-        remove.addEventListener("click", (event) => {
-          event.stopPropagation();
-          const ok = window.confirm(`Delete page "${page.name}"?`);
-          if (!ok) return;
-          state.currentPageId = page.id;
-          removeCurrentPage();
-        });
-        actions.append(remove);
-        const hasChildren = page.containers.length > 0;
-        if (hasChildren) {
-          const toggle = document.createElement("button");
-          toggle.type = "button";
-          toggle.className = "tree-toggle";
-          const isExpanded = state.expandedPages.includes(page.id);
-          toggle.textContent = isExpanded ? "▾" : "▸";
-          toggle.title = isExpanded ? "Hide items" : "Show items";
-          toggle.addEventListener("click", (event) => {
-            event.stopPropagation();
-            if (state.expandedPages.includes(page.id)) {
-              state.expandedPages = state.expandedPages.filter((id) => id !== page.id);
-            } else {
-              state.expandedPages = [...state.expandedPages, page.id];
+
+        if (node.type === "website") {
+          if (node.children && node.children.length) {
+            const children = document.createElement("ul");
+            children.className = "tree-children";
+            node.children.forEach((child) => {
+              renderNode(child, children);
+            });
+            item.appendChild(children);
+          }
+          return;
+        }
+
+        if (node.type === "page") {
+          const hasContainers = node.children && node.children.length > 0;
+          if (hasContainers) {
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "tree-toggle";
+            const isExpanded = state.expandedPages.includes(node.pageId);
+            toggle.textContent = isExpanded ? "▾" : "▸";
+            toggle.title = isExpanded ? "Hide items" : "Show items";
+            toggle.addEventListener("click", (event) => {
+              event.stopPropagation();
+              if (state.expandedPages.includes(node.pageId)) {
+                state.expandedPages = state.expandedPages.filter((id) => id !== node.pageId);
+              } else {
+                state.expandedPages = [...state.expandedPages, node.pageId];
+              }
+              renderTree();
+            });
+            actions.appendChild(toggle);
+          }
+        }
+
+        if (node.type === "page") {
+          if (canDropOn("container", "page")) {
+            makeDropTarget(row, "container", {
+              onDragOver: () => row.classList.add("drag-target"),
+              onDragLeave: () => row.classList.remove("drag-target"),
+              onDrop: ({ fromPageId, nodeId }) => {
+                row.classList.remove("drag-target");
+                if (fromPageId === node.pageId) return;
+                moveContainerToPage(nodeId, fromPageId, node.pageId);
+              },
+            });
+            makeDropTarget(labelButton, "container", {
+              onDragOver: () => row.classList.add("drag-target"),
+              onDragLeave: () => row.classList.remove("drag-target"),
+              onDrop: ({ fromPageId, nodeId }) => {
+                row.classList.remove("drag-target");
+                if (fromPageId === node.pageId) return;
+                moveContainerToPage(nodeId, fromPageId, node.pageId);
+              },
+            });
+          }
+          if (state.expandedPages.includes(node.pageId)) {
+            const children = document.createElement("ul");
+            children.className = "tree-children";
+            if (canDropOn("container", "page")) {
+              makeDropTarget(children, "container", {
+                onDrop: ({ fromPageId, nodeId }) => {
+                  if (fromPageId === node.pageId) return;
+                  moveContainerToPage(nodeId, fromPageId, node.pageId);
+                },
+              });
             }
-            renderTree();
-          });
-          actions.append(toggle);
-        }
-        row.append(pageButton, actions);
-        item.appendChild(row);
-
-        if (state.expandedPages.includes(page.id)) {
-          const children = document.createElement("ul");
-          children.className = "tree-children";
-          page.containers.forEach((container) => {
-            renderContainerNode(container, children, page.id);
-          });
-          if (children.children.length) {
-            item.appendChild(children);
+            node.children.forEach((child) => {
+              renderNode(child, children);
+            });
+            if (children.children.length) {
+              item.appendChild(children);
+            }
           }
+          return;
         }
-        treeList.appendChild(item);
+
+        if (node.type === "container") {
+          if (state.expandedContainers.includes(node.containerId)) {
+            const children = document.createElement("ul");
+            children.className = "tree-children";
+            if (canDropOn("button", "container")) {
+              makeDropTarget(children, "button", {
+                onDrop: ({ fromPageId, fromContainerId, nodeId }) => {
+                  if (fromContainerId === node.containerId && fromPageId === node.pageId) return;
+                  moveButtonToContainer(
+                    nodeId,
+                    fromContainerId,
+                    node.containerId,
+                    fromPageId,
+                    node.pageId
+                  );
+                },
+              });
+            }
+            node.children.forEach((child) => {
+              renderNode(child, children);
+            });
+            if (children.children.length) {
+              item.appendChild(children);
+            }
+          }
+          return;
+        }
       };
 
-      state.pages.forEach((page) => {
-        renderPageNode(page);
-      });
+      const model = TreeModel.buildTreeModel(state);
+      renderNode(model, treeList);
     }
 
     return { renderTree };

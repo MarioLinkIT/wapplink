@@ -7,6 +7,8 @@
 
     const renderList = () => (typeof ctx.renderList === "function" ? ctx.renderList() : null);
     const renderTree = () => (typeof ctx.renderTree === "function" ? ctx.renderTree() : null);
+    const selectNode = (node) =>
+      typeof ctx.selectNode === "function" ? ctx.selectNode(node) : null;
     const setDirty = (value) =>
       typeof ctx.setDirty === "function" ? ctx.setDirty(value) : null;
     const getCurrentPage = () => (typeof ctx.getCurrentPage === "function" ? ctx.getCurrentPage() : null);
@@ -254,14 +256,14 @@
       element.__startDrag = (event) => startDrag(event, "mouse");
       element.addEventListener("click", (event) => {
         event.stopPropagation();
-        state.selectedNode = {
-          type: "button",
-          pageId: pageId || null,
-          containerId,
-          buttonId: button.id,
-        };
-        renderList();
-        renderTree();
+        if (selectNode) {
+          selectNode({
+            type: "button",
+            pageId: pageId || null,
+            containerId,
+            buttonId: button.id,
+          });
+        }
       });
       return element;
     }
@@ -427,14 +429,14 @@
         }
         box.addEventListener("click", (event) => {
           if (event.target !== box) return;
-          state.selectedNode = {
-            type: "container",
-            pageId: page.id,
-            containerId: container.id,
-            buttonId: null,
-          };
-          renderList();
-          renderTree();
+          if (selectNode) {
+            selectNode({
+              type: "container",
+              pageId: page.id,
+              containerId: container.id,
+              buttonId: null,
+            });
+          }
         });
         container.buttons.forEach((button) => {
           normalizeButton(button);
@@ -515,14 +517,14 @@
           el.classList.remove("selected");
         });
         buttonEl.classList.add("selected");
-        state.selectedNode = {
-          type: "button",
-          pageId,
-          containerId,
-          buttonId,
-        };
-        renderList();
-        renderTree();
+        if (selectNode) {
+          selectNode({
+            type: "button",
+            pageId,
+            containerId,
+            buttonId,
+          });
+        }
       }
       event.preventDefault();
       event.stopPropagation();

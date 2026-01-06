@@ -2,10 +2,14 @@
   "name": "websitebuilder",
   "private": true,
   "version": "0.1.0",
+  "config": {
+    "core.hooksPath": ".githooks"
+  },
   "scripts": {
-    "start": "MODE=guest node server.js",
+    "start": "node scripts/validate-work-log.js && MODE=guest node server.js",
     "dev": "node scripts/dev.js",
     "log:update": "node scripts/update-work-log.js",
-    "log:watch": "node scripts/watch-work-log.js"
+    "log:watch": "node scripts/watch-work-log.js",
+    "log:validate": "node scripts/validate-work-log.js"
   }
 }

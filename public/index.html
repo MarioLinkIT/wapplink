@@ -13,9 +13,9 @@
         <p>Create buttons, move them around, and save the layout.</p>
       </div>
       <div class="actions">
-        <button id="toggleScale">Open Guest View</button>
+        <button id="toggleScale" title="Open Guest View" aria-label="Open Guest View">⤢</button>
         <button id="testError" class="ghost-btn" type="button">Test Error</button>
-        <button id="saveState">Save</button>
+        <button id="saveState" title="Save" aria-label="Save">💾</button>
       </div>
       <div class="notifications" id="notifications"></div>
     </header>
@@ -27,7 +27,6 @@
       <aside class="sidebar wide">
         <div class="section-title">
           <h2>Hierarchy</h2>
-          <button id="addPage" class="icon-link" type="button" title="Add page" aria-label="Add page">+</button>
         </div>
         <ul id="treeList" class="tree"></ul>
         <h2>Element</h2>
@@ -39,7 +38,9 @@
 
     <script src="/shared.js"></script>
     <script src="/helpers.js"></script>
+    <script src="/selection.js"></script>
     <script src="/canvas.js"></script>
+    <script src="/tree-model.js"></script>
     <script src="/tree.js"></script>
     <script src="/element-panel.js"></script>
     <script src="/app.js"></script>
