@@ -373,6 +373,27 @@ button.dirty {
   gap: 6px;
 }
 
+.tree-dropbar {
+  list-style: none;
+  height: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.tree-dropbar-line {
+  height: 2px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(39, 247, 215, 0.25);
+  opacity: 0.4;
+}
+
+.tree-dropbar.active .tree-dropbar-line {
+  opacity: 1;
+  background: rgba(39, 247, 215, 0.85);
+  box-shadow: 0 0 8px rgba(39, 247, 215, 0.35);
+}
+
 .tree-node-wrap {
   width: 100%;
   border-radius: 12px;

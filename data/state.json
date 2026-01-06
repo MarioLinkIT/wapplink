@@ -129,6 +129,56 @@
               },
               "buttons": [],
               "containers": []
+            },
+            {
+              "id": "container_1767742874887_5111",
+              "name": "Container 4",
+              "x": 247,
+              "y": 125,
+              "width": 296,
+              "height": 150,
+              "origin": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "bgColor": "",
+              "borderColor": "",
+              "borderStyle": "",
+              "borderWidth": 0,
+              "units": {
+                "x": "%",
+                "y": "%",
+                "width": "%",
+                "height": "%"
+              },
+              "buttons": [
+                {
+                  "id": "btn_1767742923626_9425",
+                  "label": "Button 1",
+                  "x": 148,
+                  "y": 75,
+                  "width": 88,
+                  "height": 36,
+                  "origin": {
+                    "x": 0.5,
+                    "y": 0.5
+                  },
+                  "bgColor": "",
+                  "borderColor": "",
+                  "borderStyle": "",
+                  "borderWidth": null,
+                  "units": {
+                    "x": "%",
+                    "y": "%",
+                    "width": "%",
+                    "height": "%"
+                  },
+                  "action": {
+                    "type": "none"
+                  }
+                }
+              ],
+              "containers": []
             }
           ]
         }
@@ -142,7 +192,7 @@
       "containers": [
         {
           "id": "container_1767409589896_8953",
-          "name": "Container 1",
+          "name": "Container 3",
           "x": 0,
           "y": 0,
           "width": 1354,
@@ -199,22 +249,21 @@
   "canvasMode": "fixed",
   "pageSize": {
     "width": 1339,
-    "height": 760
+    "height": 1027
   },
   "expandedContainers": [
     "container_1767409589896_9816",
     "container_1767409589896_8953",
     "container_1767445920573_106",
-    "container_1767442007672_2603"
+    "container_1767442007672_2603",
+    "container_1767742874887_5111"
   ],
   "expandedPages": [
     "page_1767396308490_6358",
     "page_1767396320045_5940"
   ],
   "selectedNode": {
-    "type": "container",
-    "pageId": "page_1767396308490_6358",
-    "containerId": "container_1767409589896_9816",
-    "buttonId": ""
+    "type": "button",
+    "nodeId": "btn_1767742923626_9425"
   }
 }

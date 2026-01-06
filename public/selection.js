@@ -16,9 +16,7 @@
       if (node.type === "website") {
         state.selectedNode = {
           type: "website",
-          pageId: null,
-          containerId: null,
-          buttonId: null,
+          nodeId: "website",
         };
         if (typeof renderList === "function") renderList();
         if (typeof renderTree === "function") renderTree();
@@ -28,9 +26,7 @@
         state.currentPageId = node.pageId;
         state.selectedNode = {
           type: "page",
-          pageId: node.pageId,
-          containerId: null,
-          buttonId: null,
+          nodeId: node.pageId || node.id || null,
         };
         if (typeof renderPagesSelect === "function") renderPagesSelect();
         if (getCanvas()) getCanvas().renderCanvas();
@@ -43,9 +39,7 @@
         if (node.pageId) state.currentPageId = node.pageId;
         state.selectedNode = {
           type: "container",
-          pageId: node.pageId || null,
-          containerId: node.containerId,
-          buttonId: null,
+          nodeId: node.containerId || node.id || null,
         };
         if (getCanvas()) getCanvas().renderCanvas();
         if (typeof renderList === "function") renderList();
@@ -56,9 +50,7 @@
         if (node.pageId) state.currentPageId = node.pageId;
         state.selectedNode = {
           type: "button",
-          pageId: node.pageId || null,
-          containerId: node.containerId,
-          buttonId: node.buttonId,
+          nodeId: node.buttonId || node.id || null,
         };
         if (getCanvas()) getCanvas().renderCanvas();
         if (typeof renderList === "function") renderList();

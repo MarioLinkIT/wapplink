@@ -5,14 +5,31 @@
       "label": "Website",
       "role": "root",
       "children": [{ "type": "page", "collection": "pages" }],
-      "actions": { "add": ["page"] }
+      "actions": { "add": ["page"] },
+      "ui": {
+        "actions": {
+          "add": { "icon": "+", "title": "Add page" }
+        }
+      }
     },
     "page": {
       "labelField": "name",
       "idField": "id",
       "role": "branch",
       "children": [{ "type": "container", "collection": "containers" }],
-      "actions": { "add": ["container"], "remove": true, "star": true }
+      "actions": { "add": ["container"], "remove": true, "star": true },
+      "ui": {
+        "actions": {
+          "add": { "icon": "+", "title": "Add container" },
+          "remove": { "icon": "−", "title": "Remove page" },
+          "star": {
+            "icon": "☆",
+            "iconActive": "★",
+            "title": "Set start page",
+            "titleActive": "Start page"
+          }
+        }
+      }
     },
     "container": {
       "labelField": "name",
@@ -23,14 +40,25 @@
         { "type": "container", "collection": "containers" },
         { "type": "button", "collection": "buttons" }
       ],
-      "actions": { "add": ["button", "container"], "remove": true }
+      "actions": { "add": ["button", "container"], "remove": true },
+      "ui": {
+        "actions": {
+          "add": { "icon": "+", "title": "Add inside container" },
+          "remove": { "icon": "−", "title": "Remove container" }
+        }
+      }
     },
     "button": {
       "labelField": "label",
       "idField": "id",
       "role": "leaf",
       "draggable": true,
-      "actions": { "remove": true }
+      "actions": { "remove": true },
+      "ui": {
+        "actions": {
+          "remove": { "icon": "−", "title": "Remove button" }
+        }
+      }
     }
   },
   "dragDrop": {
@@ -41,7 +69,8 @@
     },
     "container": {
       "accept": ["container", "page"],
-      "moveInto": ["container", "page"]
+      "moveInto": ["container", "page"],
+      "reorderWithin": ["container"]
     }
   }
 }

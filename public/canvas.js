@@ -194,9 +194,7 @@
       }
       setElementPosition(button, element);
       const isSelected = () =>
-        state.selectedNode.type === "button" &&
-        state.selectedNode.buttonId === button.id &&
-        state.selectedNode.containerId === containerId;
+        state.selectedNode.type === "button" && state.selectedNode.nodeId === button.id;
       if (isSelected()) {
         element.classList.add("selected");
       }
@@ -262,6 +260,7 @@
             pageId: pageId || null,
             containerId,
             buttonId: button.id,
+            nodeId: button.id,
           });
         }
       });
@@ -296,8 +295,10 @@
         canvasOverlayEl.style.width = `${rootRect.width}px`;
         canvasOverlayEl.style.height = `${rootRect.height}px`;
       }
-      const selectedContainerId = state.selectedNode.containerId;
-      const selectedButtonId = state.selectedNode.buttonId;
+      const selectedContainerId =
+        state.selectedNode.type === "container" ? state.selectedNode.nodeId : null;
+      const selectedButtonId =
+        state.selectedNode.type === "button" ? state.selectedNode.nodeId : null;
       const hasSelection =
         state.selectedNode.type === "button" || state.selectedNode.type === "container";
       const containerHasDescendant = (container, targetId) => {
@@ -335,8 +336,7 @@
         box.dataset.pageId = page.id;
         Shared.applyElementStyles(container, box);
         const isContainerSelected =
-          state.selectedNode.type === "container" &&
-          state.selectedNode.containerId === container.id;
+          state.selectedNode.type === "container" && state.selectedNode.nodeId === container.id;
         if (isContainerSelected) {
           box.classList.add("selected");
         const originHandle = document.createElement("div");
@@ -418,7 +418,7 @@
             getParentRect: () => parentRect,
             isActive: () =>
               state.selectedNode.type === "container" &&
-              state.selectedNode.containerId === container.id,
+              state.selectedNode.nodeId === container.id,
             requireSelf: true,
             onMove: () => {
               if (typeof box.__updateOverlay === "function") {
@@ -429,15 +429,14 @@
         }
         box.addEventListener("click", (event) => {
           if (event.target !== box) return;
-          if (selectNode) {
-            selectNode({
-              type: "container",
-              pageId: page.id,
-              containerId: container.id,
-              buttonId: null,
-            });
-          }
-        });
+        if (selectNode) {
+          selectNode({
+            type: "container",
+            pageId: page.id,
+            id: container.id,
+          });
+        }
+      });
         container.buttons.forEach((button) => {
           normalizeButton(button);
           const containerRect = {
@@ -506,9 +505,7 @@
       const pageId = buttonEl.dataset.pageId || null;
       if (!buttonId || !containerId) return;
       const alreadySelected =
-        state.selectedNode.type === "button" &&
-        state.selectedNode.buttonId === buttonId &&
-        state.selectedNode.containerId === containerId;
+        state.selectedNode.type === "button" && state.selectedNode.nodeId === buttonId;
       if (!alreadySelected) {
         canvas.querySelectorAll(".canvas-button.selected").forEach((el) => {
           el.classList.remove("selected");
@@ -521,8 +518,7 @@
           selectNode({
             type: "button",
             pageId,
-            containerId,
-            buttonId,
+            id: buttonId,
           });
         }
       }

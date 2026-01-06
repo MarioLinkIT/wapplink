@@ -6,7 +6,7 @@ const ROOT = path.join(__dirname, "..");
 const LOG_PATH = path.join(ROOT, "WORK_LOG.json");
 const POLICIES_PATH = path.join(ROOT, "POLICIES.json");
 const REQUIRED_POLICIES = [
-  "Auto update/optimize code + WORK_LOG.json (no approval for log)",
+  "Auto update/optimize code + WORK_LOG.json + POLICIES.json (no approval for log/policies)",
   "Propose abstractions; implement only after approval",
   "Lean principles (KISS/DRY/YAGNI)",
   "Merge/shorten policies only if meaning preserved",

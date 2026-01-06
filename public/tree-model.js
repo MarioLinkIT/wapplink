@@ -39,6 +39,11 @@
         reorderWithin: ["button"],
         moveInto: ["container"],
       },
+      container: {
+        accept: ["container", "page"],
+        moveInto: ["container", "page"],
+        reorderWithin: ["container"],
+      },
     },
   };
 

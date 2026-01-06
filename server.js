@@ -288,11 +288,9 @@ const server = http.createServer(async (req, res) => {
               parsed.selectedNode && typeof parsed.selectedNode === "object"
                 ? {
                     type: String(parsed.selectedNode.type || ""),
-                    pageId: String(parsed.selectedNode.pageId || ""),
-                    containerId: String(parsed.selectedNode.containerId || ""),
-                    buttonId: String(parsed.selectedNode.buttonId || ""),
+                    nodeId: String(parsed.selectedNode.nodeId || ""),
                   }
-                : { type: "", pageId: "", containerId: "", buttonId: "" },
+                : { type: "", nodeId: "" },
           };
           await saveState(sanitized);
           sendJson(res, 200, { ok: true });

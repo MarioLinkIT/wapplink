@@ -8,6 +8,7 @@
       getContainerById,
       getContainerParentId,
       getContainerParentRect,
+      getContainerForButton,
       normalizeContainer,
       normalizeButton,
       createPosSizeField,
@@ -143,16 +144,15 @@
         container = null;
         visibleButtons = [];
       } else if (state.selectedNode.type === "container") {
-        container = getContainerById(state.selectedNode.containerId, state.selectedNode.pageId);
+        container = getContainerById(state.selectedNode.nodeId);
         visibleButtons = [];
       } else if (state.selectedNode.type === "button") {
-        container = getContainerById(state.selectedNode.containerId, state.selectedNode.pageId);
-        visibleButtons = container
-          ? container.buttons.filter((button) => button.id === state.selectedNode.buttonId)
-          : [];
+        const found = getContainerForButton(state.selectedNode.nodeId);
+        container = found ? found.container : null;
+        visibleButtons = found ? [found.button] : [];
       }
       if (container) {
-        normalizeContainer(container, getContainerParentRect(container.id, state.selectedNode.pageId));
+        normalizeContainer(container, getContainerParentRect(container.id));
       }
       const hasWebsite = state.selectedNode.type === "website";
       const hasPage = state.selectedNode.type === "page" && Boolean(page);
@@ -264,7 +264,7 @@
       }
 
       if (state.selectedNode.type === "container" && container) {
-        normalizeContainer(container, getContainerParentRect(container.id, state.selectedNode.pageId));
+        normalizeContainer(container, getContainerParentRect(container.id));
         const li = document.createElement("li");
         li.classList.add("container-properties");
         const header = document.createElement("div");
@@ -289,9 +289,9 @@
         const fields = document.createElement("div");
         fields.className = "action-row";
 
-        const parentId = getContainerParentId(container.id, state.selectedNode.pageId);
+        const parentId = getContainerParentId(container.id);
         const parentContainer = parentId
-          ? getContainerById(parentId, state.selectedNode.pageId)
+          ? getContainerById(parentId)
           : null;
         const posSizeField = createPosSizeField({
           target: container,
@@ -345,7 +345,7 @@
         remove.addEventListener("click", () => {
           const ok = window.confirm(`Delete container "${container.name}"?`);
           if (!ok) return;
-          state.selectedNode = { type: "container", containerId: container.id, buttonId: null };
+          state.selectedNode = { type: "container", nodeId: container.id };
           removeCurrentContainer();
         });
         header.append(label, meta, reset, remove);
@@ -357,7 +357,7 @@
         const li = document.createElement("li");
         const header = document.createElement("div");
         header.className = "meta-row";
-        if (state.selectedNode.type === "button" && button.id === state.selectedNode.buttonId) {
+        if (state.selectedNode.type === "button" && button.id === state.selectedNode.nodeId) {
           li.classList.add("selected");
         }
         const label = document.createElement("span");
@@ -416,9 +416,9 @@
           container.buttons = container.buttons.filter((item) => item.id !== button.id);
           if (
             state.selectedNode.type === "button" &&
-            state.selectedNode.buttonId === button.id
+            state.selectedNode.nodeId === button.id
           ) {
-            state.selectedNode = { type: "container", containerId: container.id, buttonId: null };
+            state.selectedNode = { type: "container", nodeId: container.id };
           }
           canvasUI.renderCanvas();
           renderList();

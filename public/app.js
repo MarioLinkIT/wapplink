@@ -23,7 +23,7 @@ const state = {
   currentPageId: null,
   startPageId: null,
   canvasMode: "fixed",
-  selectedNode: { type: null, pageId: null, containerId: null, buttonId: null },
+  selectedNode: { type: null, nodeId: null },
   isDirty: false,
   lastSaved: null,
   pageSize: null,
@@ -53,11 +53,6 @@ function setStatus(message) {
 
 function showError(message) {
   addNotice(message, "error");
-}
-
-function clearStatus() {
-  if (!notifications) return;
-  notifications.innerHTML = "";
 }
 
 function setDirty(value) {
@@ -207,6 +202,25 @@ function getPageIdForContainer(containerId) {
   return foundPageId;
 }
 
+function getContainerForButton(buttonId) {
+  let found = null;
+  let foundPageId = null;
+  state.pages.forEach((page) => {
+    if (!Array.isArray(page.containers)) return;
+    walkContainers(page.containers, (container) => {
+      if (found) return;
+      if (!Array.isArray(container.buttons)) return;
+      const match = container.buttons.find((btn) => btn.id === buttonId);
+      if (match) {
+        found = { container, button: match };
+        foundPageId = page.id;
+      }
+    });
+  });
+  if (!found) return null;
+  return { ...found, pageId: foundPageId };
+}
+
 function findContainerById(containerId, pageId = null) {
   const page = pageId
     ? state.pages.find((item) => item.id === pageId)
@@ -245,11 +259,12 @@ function getContainerParentRect(containerId, pageId = null) {
 function getCurrentContainer() {
   const page = getCurrentPage();
   if (!page) return null;
-  if (state.selectedNode.type === "container") {
-    return getContainerById(state.selectedNode.containerId);
+  if (state.selectedNode.type === "container" && state.selectedNode.nodeId) {
+    return getContainerById(state.selectedNode.nodeId);
   }
-  if (state.selectedNode.type === "button") {
-    return getContainerById(state.selectedNode.containerId);
+  if (state.selectedNode.type === "button" && state.selectedNode.nodeId) {
+    const found = getContainerForButton(state.selectedNode.nodeId);
+    return found ? found.container : null;
   }
   return page.containers[0] || null;
 }
@@ -322,38 +337,13 @@ function createButtonForContainer(container) {
   return button;
 }
 
-function addNewButton() {
-  const rect = canvasUI.getPageSurfaceRect();
-  const page = getCurrentPage();
-  if (!page) return;
-  let container = getCurrentContainer();
-  if (!container) {
-    const centerX = Math.round((rect.width || 0) / 2);
-    const centerY = Math.round((rect.height || 0) / 2);
-    container = {
-      id: makeContainerId(),
-      name: "Container 1",
-      x: centerX,
-      y: centerY,
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-      origin: { x: 0.5, y: 0.5 },
-      borderWidth: 0,
-      units: { x: "%", y: "%", width: "%", height: "%" },
-      buttons: [],
-      containers: [],
-    };
-    page.containers.push(container);
-  }
-  normalizeContainer(container, rect);
-  const button = createButtonForContainer(container);
-  addButtonToContainer(container, button);
-}
-
 function addButtonToContainer(container, button) {
   if (!container) return;
   container.buttons.push(button);
-  state.selectedNode = { type: "button", containerId: container.id, buttonId: button.id };
+  state.selectedNode = {
+    type: "button",
+    nodeId: button.id,
+  };
   canvasUI.renderCanvas();
   renderList();
   renderTree();
@@ -380,7 +370,10 @@ function addChildContainer(parentContainer) {
     containers: [],
   };
   parentContainer.containers.push(container);
-  state.selectedNode = { type: "container", containerId: container.id, buttonId: null };
+  state.selectedNode = {
+    type: "container",
+    nodeId: container.id,
+  };
   canvasUI.renderCanvas();
   renderList();
   renderTree();
@@ -418,7 +411,10 @@ function addNewPage() {
   }
   state.currentPageId = page.id;
   state.expandedPages = [...state.expandedPages, page.id];
-  state.selectedNode = { type: "container", containerId: page.containers[0].id, buttonId: null };
+  state.selectedNode = {
+    type: "container",
+    nodeId: page.containers[0].id,
+  };
   canvasUI.renderCanvas();
   renderList();
   renderTree();
@@ -446,7 +442,10 @@ function addNewContainer() {
     containers: [],
   };
   page.containers.push(container);
-  state.selectedNode = { type: "container", containerId: container.id, buttonId: null };
+  state.selectedNode = {
+    type: "container",
+    nodeId: container.id,
+  };
   canvasUI.renderCanvas();
   renderList();
   renderTree();
@@ -467,14 +466,17 @@ function removeCurrentContainer() {
     const parent = getContainerById(parentId);
     if (parent) {
       parent.containers = parent.containers.filter((item) => item.id !== current.id);
-      state.selectedNode = { type: "container", containerId: parent.id, buttonId: null };
+      state.selectedNode = {
+        type: "container",
+        nodeId: parent.id,
+      };
     }
   } else {
     page.containers = page.containers.filter((item) => item.id !== current.id);
     const next = page.containers[0];
     state.selectedNode = next
-      ? { type: "container", containerId: next.id, buttonId: null }
-      : { type: null, containerId: null, buttonId: null };
+      ? { type: "container", nodeId: next.id }
+      : { type: null, nodeId: null };
   }
   canvasUI.renderCanvas();
   renderList();
@@ -502,6 +504,7 @@ const elementPanel = ElementPanel({
   getContainerById,
   getContainerParentId,
   getContainerParentRect,
+  getContainerForButton,
   normalizeContainer,
   normalizeButton,
   createPosSizeField,
@@ -784,57 +787,38 @@ async function loadState() {
     }
     if (data.selectedNode && typeof data.selectedNode === "object") {
       const selected = data.selectedNode;
-      if (selected.type === "page" && typeof selected.pageId === "string") {
-        const page = state.pages.find((item) => item.id === selected.pageId);
+      if (selected.type === "page" && typeof selected.nodeId === "string") {
+        const page = state.pages.find((item) => item.id === selected.nodeId);
         if (page) {
           state.currentPageId = page.id;
           state.selectedNode = {
             type: "page",
-            pageId: page.id,
-            containerId: null,
-            buttonId: null,
+            nodeId: page.id,
           };
         }
       } else if (selected.type === "website") {
         state.selectedNode = {
           type: "website",
-          pageId: null,
-          containerId: null,
-          buttonId: null,
+          nodeId: "website",
         };
-      } else if (
-        selected.type === "container" &&
-        typeof selected.containerId === "string"
-      ) {
-        const container = getContainerById(selected.containerId);
+      } else if (selected.type === "container" && typeof selected.nodeId === "string") {
+        const container = getContainerById(selected.nodeId);
         const pageId = container ? getPageIdForContainer(container.id) : null;
         if (container && pageId) {
           state.currentPageId = pageId;
           state.selectedNode = {
             type: "container",
-            pageId,
-            containerId: container.id,
-            buttonId: null,
+            nodeId: container.id,
           };
         }
-      } else if (
-        selected.type === "button" &&
-        typeof selected.containerId === "string" &&
-        typeof selected.buttonId === "string"
-      ) {
-        const container = getContainerById(selected.containerId);
-        const button =
-          container &&
-          Array.isArray(container.buttons) &&
-          container.buttons.find((item) => item.id === selected.buttonId);
-        const pageId = container ? getPageIdForContainer(container.id) : null;
-        if (container && button && pageId) {
+      } else if (selected.type === "button" && typeof selected.nodeId === "string") {
+        const found = getContainerForButton(selected.nodeId);
+        const pageId = found ? found.pageId : null;
+        if (found && pageId) {
           state.currentPageId = pageId;
           state.selectedNode = {
             type: "button",
-            pageId,
-            containerId: container.id,
-            buttonId: button.id,
+            nodeId: found.button.id,
           };
         }
       }
@@ -846,20 +830,26 @@ async function loadState() {
   if (!state.selectedNode.type) {
     const firstContainer = getCurrentContainer();
     state.selectedNode = firstContainer
-      ? { type: "container", containerId: firstContainer.id, buttonId: null, pageId: null }
-      : { type: null, containerId: null, buttonId: null, pageId: null };
+      ? {
+          type: "container",
+          nodeId: firstContainer.id,
+        }
+      : {
+          type: null,
+          nodeId: null,
+        };
   }
-  if (state.selectedNode.type === "page" && state.selectedNode.pageId) {
-    if (!state.expandedPages.includes(state.selectedNode.pageId)) {
-      state.expandedPages = [...state.expandedPages, state.selectedNode.pageId];
+  if (state.selectedNode.type === "page" && state.selectedNode.nodeId) {
+    if (!state.expandedPages.includes(state.selectedNode.nodeId)) {
+      state.expandedPages = [...state.expandedPages, state.selectedNode.nodeId];
     }
   }
-  if (state.selectedNode.type === "container" && state.selectedNode.containerId) {
-    const pageId = getPageIdForContainer(state.selectedNode.containerId);
+  if (state.selectedNode.type === "container" && state.selectedNode.nodeId) {
+    const pageId = getPageIdForContainer(state.selectedNode.nodeId);
     if (pageId && !state.expandedPages.includes(pageId)) {
       state.expandedPages = [...state.expandedPages, pageId];
     }
-    let currentId = state.selectedNode.containerId;
+    let currentId = state.selectedNode.nodeId;
     while (currentId) {
       if (!state.expandedContainers.includes(currentId)) {
         state.expandedContainers = [...state.expandedContainers, currentId];
@@ -867,12 +857,13 @@ async function loadState() {
       currentId = getContainerParentId(currentId);
     }
   }
-  if (state.selectedNode.type === "button" && state.selectedNode.containerId) {
-    const pageId = getPageIdForContainer(state.selectedNode.containerId);
+  if (state.selectedNode.type === "button" && state.selectedNode.nodeId) {
+    const found = getContainerForButton(state.selectedNode.nodeId);
+    const pageId = found ? found.pageId : null;
     if (pageId && !state.expandedPages.includes(pageId)) {
       state.expandedPages = [...state.expandedPages, pageId];
     }
-    let currentId = state.selectedNode.containerId;
+    let currentId = found ? found.container.id : null;
     while (currentId) {
       if (!state.expandedContainers.includes(currentId)) {
         state.expandedContainers = [...state.expandedContainers, currentId];
@@ -1004,8 +995,11 @@ if (pagesSelect) {
     const page = getCurrentPage();
     const firstContainer = page && page.containers[0];
     state.selectedNode = firstContainer
-      ? { type: "container", containerId: firstContainer.id, buttonId: null }
-      : { type: null, containerId: null, buttonId: null };
+      ? {
+          type: "container",
+          nodeId: firstContainer.id,
+        }
+      : { type: null, nodeId: null };
     canvasUI.renderCanvas();
     renderList();
     renderTree();
@@ -1027,7 +1021,7 @@ treeList.addEventListener("dblclick", (event) => {
 });
 canvas.addEventListener("click", (event) => {
   if (event.target !== canvas) return;
-  state.selectedNode = { type: null, containerId: null, buttonId: null };
+  state.selectedNode = { type: null, nodeId: null };
   canvasUI.renderCanvas();
   renderList();
   renderTree();
@@ -1035,12 +1029,16 @@ canvas.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
   if (tag === "input" || tag === "textarea") return;
-  if (state.selectedNode.type !== "button") return;
+  if (state.selectedNode.type !== "button" || !state.selectedNode.nodeId) return;
   if (event.key === "Delete" || event.key === "Backspace") {
-    const container = getContainerById(state.selectedNode.containerId);
+    const found = getContainerForButton(state.selectedNode.nodeId);
+    const container = found ? found.container : null;
     if (!container) return;
-    container.buttons = container.buttons.filter((item) => item.id !== state.selectedNode.buttonId);
-    state.selectedNode = { type: "container", containerId: container.id, buttonId: null };
+    container.buttons = container.buttons.filter((item) => item.id !== state.selectedNode.nodeId);
+    state.selectedNode = {
+      type: "container",
+      nodeId: container.id,
+    };
     canvasUI.renderCanvas();
     renderList();
     renderTree();
