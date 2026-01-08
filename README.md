@@ -18,3 +18,4 @@ Create buttons, move them around, and save the layout.
 - Prefer incremental renders and avoid full tree re-renders when possible for UI performance.
 - Policy intents: keep lean principles, update logs with file changes, and preserve meaning when policies are shortened.
 - Policies live in `POLICIES.json`; copy it to new projects when you only need the rules.
+- Codeword: use `bundle` to squash local commits before pushing.

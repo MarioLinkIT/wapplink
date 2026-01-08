@@ -126,6 +126,7 @@
           if (payload && payload.type && payload.type !== payloadType) return;
           if (!payload) return;
           event.preventDefault();
+          event.stopPropagation();
           if (event.dataTransfer) {
             event.dataTransfer.dropEffect = "move";
           }
@@ -139,6 +140,7 @@
           if (payload && payload.type && payload.type !== payloadType) return;
           if (!payload) return;
           event.preventDefault();
+          event.stopPropagation();
           if (handlers.onDrop) handlers.onDrop(payload);
           state.dragPayload = null;
         });
